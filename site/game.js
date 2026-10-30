@@ -8,13 +8,14 @@ function hash(x,z){const s=Math.sin(x*127.1+z*311.7)*43758.5453;return s-Math.fl
 function vnoise(x,z){const xi=Math.floor(x),zi=Math.floor(z),xf=x-xi,zf=z-zi;const u=xf*xf*(3-2*xf),v=zf*zf*(3-2*zf);
  const a=hash(xi,zi),b=hash(xi+1,zi),c=hash(xi,zi+1),d=hash(xi+1,zi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
 function fbm(x,z){return vnoise(x,z)*.55+vnoise(x*2.1,z*2.1)*.28+vnoise(x*4.3,z*4.3)*.17;}
-const riverX=z=>Math.sin(z*0.012)*18+Math.sin(z*0.031)*6;
+const TS=(SEED%9973)/9973,NOX=TS*517.3,NOZ=TS*331.9,RPH=TS*6.283,RAMP=14+TS*8,BOFF=Math.floor(TS*6)+TS;
+const riverX=z=>Math.sin(z*0.012+RPH)*RAMP+Math.sin(z*0.031+RPH*2)*6-Math.sin(RPH)*RAMP-Math.sin(RPH*2)*6;
 function height(x,z){const dx=x-riverX(z);const side=Math.max(0,Math.abs(dx)-14);
- let h=fbm(x*.03,z*.03)*7+Math.pow(side/22,2)*9+fbm(x*.08,z*.08)*side*.08;
+ let h=fbm(x*.03+NOX,z*.03+NOZ)*(6+TS*3)+Math.pow(side/(20+TS*5),2)*9+fbm(x*.08+NOZ,z*.08+NOX)*side*.08;
  const riv=Math.max(0,1-Math.abs(dx)/6);h-=riv*riv*3.2;const q=biomeAt(z);const sea=SEA[q.a]*(1-q.k)+SEA[q.b]*q.k;
  const des=(q.a==4?1-q.k:0)+(q.b==4?q.k:0);if(des>0){h+=des*(Math.sin(x*.12+z*.05)*1.6+Math.sin(z*.09-x*.03)*1.1+1.5);}
  if(sea>0){const cx=dx<0?Math.max(0,-dx-4):0;h-=sea*(3+cx*.25);}return h;}
-const BL=420;function biomeAt(z){const p=((-z/BL)%6+6)%6;const i=Math.floor(p),f=p-i;const k=THREE.MathUtils.smoothstep(f,.8,1);return {a:i,b:(i+1)%6,k};}
+const BL=420;function biomeAt(z){const p=((-z/BL+BOFF)%6+6)%6;const i=Math.floor(p),f=p-i;const k=THREE.MathUtils.smoothstep(f,.8,1);return {a:i,b:(i+1)%6,k};}
 const biome=z=>{const q=biomeAt(z);return q.k>.5?q.b:q.a;};
 const C=(h)=>new THREE.Color(h);
 const pal=[{g1:C('#a8d58a'),g2:C('#7cc08a'),tree:[C('#6fbf73'),C('#8fd18a'),C('#f2a7c3')]},
@@ -155,7 +156,7 @@ function buildChunk(ch,idx){
    const tw=new THREE.Mesh(G.mill,M.wall);tw.castShadow=true;const cp=new THREE.Mesh(G.roof,M.roofs[2]);cp.position.y=4.3;cp.rotation.y=Math.PI/4;const hub=new THREE.Group();hub.position.set(0,3.6,.9);
    for(let i=0;i<4;i++){const bl=new THREE.Mesh(G.blade,M.card);bl.rotation.z=i*Math.PI/2;bl.castShadow=true;hub.add(bl);}wm.add(tw,cp,hub);wm.position.set(wx,wh,wz);wm.rotation.y=r()*1-.5;g.add(wm);dynamic.push({type:'mill',o:wm,chunk:ch,hub,sp:1});}}
  if(r()<.5){const bz=z0-10-r()*40,bx=riverX(bz);const br=new THREE.Group();const deck=new THREE.Mesh(G.arch,M.trunk);deck.castShadow=true;br.add(deck);
-   br.position.set(bx,Math.max(height(bx-8,bz),height(bx+8,bz),-1)-.3,bz);br.rotation.y=Math.atan(Math.cos(bz*.012)*18*.012+Math.cos(bz*.031)*6*.031);g.add(br);}
+   br.position.set(bx,Math.max(height(bx-8,bz),height(bx+8,bz),-1)-.3,bz);br.rotation.y=Math.atan(riverX(bz+.5)-riverX(bz-.5));g.add(br);}
  // wow set piece every ~800m: hot-air balloons + sparkle ring
  if(idx>0&&idx%13===0){const cz=z0-30,cx=riverX(cz);for(let i=0;i<5;i++){const bl=new THREE.Group();const env=new THREE.Mesh(G.balloon,[M.roofs[0],M.roofs[1],M.roofs[2],M.fl1,M.fl2][i]);env.scale.set(1,1.2,1);
    const bs=new THREE.Mesh(G.box,M.trunk);bs.scale.set(.7,.5,.7);bs.position.y=-2.6;env.castShadow=true;bl.add(env,bs);bl.position.set(cx+(i-2)*9,height(cx,cz)+12+r()*8,cz-r()*20);g.add(bl);dynamic.push({type:'balloon',o:bl,chunk:ch,ph:r()*6,y0:bl.position.y,push:0});}
@@ -220,21 +221,26 @@ let toastT=0;function toast(s){const t=$('toast');t.textContent=s;t.style.opacit
 const cardMsgs=[
 ['Vadi Sabahı','Selamlar vadiden! Sis daha kalkmadı, koyunlar hâlâ uykulu.'],['Köy Fırını','Burası mis gibi ekmek kokuyor. Bacadan çıkan duman bize el sallıyor.'],
 ['Nehir Pikniği','Nehir kenarında piknik; köprünün altından kayıklar geçiyor.'],['Bulut Geçidi','Bulutların arasından geçtik, tüylerim pamuk gibi oldu.'],
-['Sonbahar Rüzgârı','Sonbahar geldi! Yapraklar turuncu bir halı gibi.'],['Kardan Adamlar','Karlı tepede kardan adamlar el sallıyor, burunları havuçtan.'],
-['İskele','İskelede gün batımı. Martılar akşam yemeğini arıyor.'],['Çiçek Tarlası','Bahar tarlasında arılar ve pembe çiçekler.'],
-['Martı Selamı','Martılar selam söylüyor; deniz tuzlu, rüzgâr serin.'],['Zirve','Dağların zirvesinden bütün dünya bir oyuncak gibi görünüyor.'],
-['Yel Değirmeni','Değirmenin kanatları biz geçince hızlandı!'],['Deniz Feneri','Fener ışığı gece yolunu kaybedenlere göz kırpıyor.'],
+['Sonbahar Rüzgârı','Sonbahar geldi! Yapraklar turuncu bir halı gibi.',1],['Kardan Adamlar','Karlı tepede kardan adamlar el sallıyor, burunları havuçtan.',2],
+['İskele','İskelede gün batımı. Martılar akşam yemeğini arıyor.',3],['Çiçek Tarlası','Bahar tarlasında arılar ve pembe çiçekler.',0],
+['Martı Selamı','Martılar selam söylüyor; deniz tuzlu, rüzgâr serin.',3],['Zirve','Dağların zirvesinden bütün dünya bir oyuncak gibi görünüyor.'],
+['Yel Değirmeni','Değirmenin kanatları biz geçince hızlandı!'],['Deniz Feneri','Fener ışığı gece yolunu kaybedenlere göz kırpıyor.',3],
 ['Balon Festivali','Gökyüzü rengârenk balonlarla doldu; hepsi bize yol verdi.'],['Ay Işığı','Uzun bir yolculuk; bir gün ayı da ziyaret edeceğiz.'],
 ['Orman Fısıltısı','Çamların arasında mantarlar bize göz kırptı.',5],['Ateş Böcekleri','Ormanda akşam: minik fenerler etrafımızda dans ediyor.',5],
 ['Kum Tepeleri','Çölde kaktüsler sıcaktan şapka istiyor.',4],['Serap','Ufukta bir göl gördük… yoksa serap mıydı?',4],
-['Kar Tanesi','Her kar tanesi farklıymış; biri gagama kondu.',2],['Deniz Kabuğu','Sahilde dalgalar bize bir kabuk bıraktı.',3]];
+['Kar Tanesi','Her kar tanesi farklıymış; biri gagama kondu.',2],['Deniz Kabuğu','Sahilde dalgalar bize bir kabuk bıraktı.',3],['Arı Vızıltısı','Bahar sabahı: arılar çiçekten çiçeğe koşturuyor.',0],['Yaprak Dansı','Rüzgâr esti, sonbahar yaprakları bizimle uçtu.',1]];
 $('go').onclick=()=>{initAudio();runZ0=birdPos.z;placeGhost();runT=0;recPath=[];if(!localStorage.getItem('kk_tut'))showTut();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
 // ---------- loop ----------
 const trailMat=new THREE.SpriteMaterial({map:glowTex,color:'#ffffff',transparent:true,opacity:.35,depthWrite:false});
 const pts=[];const snowM=new THREE.MeshBasicMaterial({color:'#ffffff'}),leafM=['#f0a35e','#e5c45a','#d9785a'].map(c=>new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));const ptG=new THREE.PlaneGeometry(.22,.22);
 for(let i=0;i<70;i++){const p=new THREE.Mesh(ptG,snowM);p.visible=false;p.userData.t=0;scene.add(p);pts.push(p);}let ptI=0,ptT=0;
 const trail=[];for(let i=0;i<40;i++){const p=new THREE.Sprite(trailMat);p.visible=false;p.userData.t=0;scene.add(p);trail.push(p);}let qMode=localStorage.getItem('kk_q')||'auto',lowSec=0;
-function setQ(low){lowQ=low;renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,2));sun.castShadow=!low;renderer.shadowMap.enabled=!low;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});document.getElementById('qual').textContent=low?'◐':'✨';}
+const GFX={low:{pr:1,sh:false,map:512,fog:.8,ff:15,st:120},mid:{pr:1.5,sh:true,map:512,fog:1,ff:30,st:250},high:{pr:2,sh:true,map:1024,fog:1.1,ff:50,st:400}};let FOGK=1;
+function applyGfx(k,quiet){SET.gfx=k;saveSet();const g=GFX[k];lowQ=k==='low';renderer.setPixelRatio(Math.min(devicePixelRatio,g.pr));sun.castShadow=g.sh;renderer.shadowMap.enabled=g.sh;
+ if(sun.shadow.mapSize.x!==g.map){sun.shadow.mapSize.set(g.map,g.map);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}FOGK=g.fog;
+ if(typeof ffs!=='undefined'){ffs.forEach((f,i)=>f.userData.off.y=i<g.ff?f.userData.off.y:-999);stars.geometry.setDrawRange(0,g.st);}
+ scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});document.getElementById('qual').textContent=k==='low'?'◐':k==='mid'?'◑':'✨';document.querySelectorAll('.gfx').forEach(b=>b.classList.toggle('on',b.dataset.g===k));}
+function setQ(low){applyGfx(low?'low':'high');return;lowQ=low;renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,2));sun.castShadow=!low;renderer.shadowMap.enabled=!low;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});document.getElementById('qual').textContent=low?'◐':'✨';}
 let trailI=0,trailT=0,fpsAcc=0,fpsN=0,lowQ=false;
 let best=+localStorage.getItem('kk_best')||0;$('best').textContent=best?('En iyi: '+Math.floor(best)+' m'):'';
 addEventListener('pagehide',()=>{localStorage.setItem('kk_best',Math.floor(best));if(newBestRun)savePath();});
@@ -249,7 +255,15 @@ function initBeds(){const s2=AC.createBufferSource();s2.buffer=window.__noise;s2
 function beds(){if(!bedG)initBeds();const n=AC.currentTime,b=biome(birdPos.z);let gv=0,ft='bandpass',fq=800,q=.8;
  if(b===5){gv=.035*(.6+.4*Math.sin(t*1.7)*Math.sin(t*.6));ft='highpass';fq=3200;}else if(b===3){gv=.06*(.5+.5*Math.sin(t*.9));ft='lowpass';fq=380;}else if(b===4){gv=.03;ft='bandpass';fq=1500;q=2;}
  bedF.type=ft;bedF.frequency.setTargetAtTime(fq,n,.5);bedF.Q.value=q;bedG.gain.setTargetAtTime(muted?0:gv*(1-dusk*.4),n,.6);padG.gain.setTargetAtTime(muted?0:dusk*.012,n,1.5);}
-function wind(spd,vy){if(!AC)return;beds();const g=muted?0:(.04+Math.min(.05,Math.abs(vy)*.01))*(1-dusk*.35);windG.gain.setTargetAtTime(g,AC.currentTime,.3);windF.frequency.setTargetAtTime(400+Math.abs(vy)*80,AC.currentTime,.3);
+let musG=null,musNext=0,musStep=0;const PENT=[0,2,4,7,9,12,14,16];
+function music(){if(!musG){musG=AC.createGain();musG.gain.value=0;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;musG.connect(lp).connect(MASTER);musNext=AC.currentTime+.5;}
+ musG.gain.setTargetAtTime(muted?0:.05,AC.currentTime,.5);const n=AC.currentTime;if(n<musNext-.1)return;
+ const beat=.55+dusk*.25;const root=dusk>.5?57:62;const chordRoot=[0,5,7,3][Math.floor(musStep/8)%4];
+ if(musStep%8===0){for(const iv of[0,4,7]){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=440*Math.pow(2,(root-12+chordRoot+iv-69)/12);g.gain.setValueAtTime(.0001,musNext);g.gain.linearRampToValueAtTime(.12,musNext+.8);g.gain.linearRampToValueAtTime(.0001,musNext+beat*8);o.connect(g).connect(musG);o.start(musNext);o.stop(musNext+beat*8+.1);}}
+ if(Math.random()<(dusk>.5?.35:.6)){const o=AC.createOscillator(),g=AC.createGain();o.type=dusk>.5?'sine':'triangle';const note=root+chordRoot+PENT[Math.floor(Math.random()*PENT.length)];o.frequency.value=440*Math.pow(2,(note-69)/12);
+  g.gain.setValueAtTime(.0001,musNext);g.gain.exponentialRampToValueAtTime(.14*(1-dusk*.4),musNext+.02);g.gain.exponentialRampToValueAtTime(.0001,musNext+beat*1.8);o.connect(g).connect(musG);o.start(musNext);o.stop(musNext+beat*2);}
+ musStep++;musNext+=beat;}
+function wind(spd,vy){if(!AC)return;beds();music();const g=muted?0:(.04+Math.min(.05,Math.abs(vy)*.01))*(1-dusk*.35);windG.gain.setTargetAtTime(g,AC.currentTime,.3);windF.frequency.setTargetAtTime(400+Math.abs(vy)*80,AC.currentTime,.3);
  const ph=Math.sin(t*(vy>1.5?15:8));if(ph>.95&&t-lastFlap>.25&&!muted&&running){lastFlap=t;const s=AC.createBufferSource();s.buffer=window.__noise;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=900;const g2=AC.createGain();
   g2.gain.setValueAtTime(.0001,AC.currentTime);g2.gain.linearRampToValueAtTime(.06,AC.currentTime+.04);g2.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.22);s.connect(f).connect(g2).connect(MASTER);s.start();s.stop(AC.currentTime+.3);}}
 function whoosh(){if(!AC||muted)return;const s=AC.createBufferSource();s.buffer=window.__noise;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;const n=AC.currentTime;f.frequency.setValueAtTime(300,n);f.frequency.exponentialRampToValueAtTime(1800,n+.5);const g=AC.createGain();g.gain.setValueAtTime(.0001,n);g.gain.linearRampToValueAtTime(.18,n+.1);g.gain.exponentialRampToValueAtTime(.0001,n+.8);s.connect(f).connect(g).connect(MASTER);s.start();s.stop(n+.9);}
@@ -265,18 +279,23 @@ $('tilt').onclick=async()=>{if(tilt.on){tilt.on=false;removeEventListener('devic
  try{if(window.DeviceOrientationEvent?.requestPermission){if(await DeviceOrientationEvent.requestPermission()!=='granted')return;}}catch(e){return;}
  tilt.on=true;tilt0=null;addEventListener('deviceorientation',onOri);$('tilt').style.opacity=1;toast('Eğme kontrolü açık');};
 if(!window.DeviceOrientationEvent)$('tilt').style.display='none';
-$('qual').onclick=()=>{qMode=lowQ?'high':'low';localStorage.setItem('kk_q',qMode);setQ(qMode==='low');};if(qMode==='low')setQ(true);
+$('qual').onclick=()=>{const order=['low','mid','high'];const k=order[(order.indexOf(SET.gfx||'high')+1)%3];qMode='manual';localStorage.setItem('kk_q','manual');applyGfx(k);toast('Grafik: '+{low:'Düşük',mid:'Orta',high:'Yüksek'}[k]);};
+document.querySelectorAll('.gfx').forEach(b=>b.onclick=e=>{e.stopPropagation();qMode='manual';localStorage.setItem('kk_q','manual');applyGfx(b.dataset.g);});
 // album
 const unlocked=new Set(JSON.parse(localStorage.getItem('kk_cards')||'[]'));const runCards=[];const newCards=new Set();
-function openAlbum(){const l=$('albumList');l.innerHTML='';cardMsgs.forEach((m,i)=>{const d=document.createElement('div');const got=unlocked.has(i);d.className='ac'+(got?'':' lock');
+const TABS=[['Genel',undefined],['Bahar',0],['Sonbahar',1],['Kar',2],['Sahil',3],['Çöl',4],['Orman',5]];let albTab=0;
+function renderTabs(){const el=$('albTabs');el.innerHTML='';TABS.forEach((tb,k)=>{const ids=cardMsgs.map((m,i)=>i).filter(i=>cardMsgs[i][2]===tb[1]);const got=ids.filter(i=>unlocked.has(i)).length;const b=document.createElement('button');b.className='tab'+(k===albTab?' on':'');b.textContent=tb[0]+' '+got+'/'+ids.length;b.onclick=e=>{e.stopPropagation();albTab=k;openAlbum();};el.appendChild(b);});}
+function openAlbum(){renderTabs();const l=$('albumList');l.innerHTML='';cardMsgs.forEach((m,i)=>{if(m[2]!==TABS[albTab][1])return;const d=document.createElement('div');const got=unlocked.has(i);d.className='ac'+(got?'':' lock');
  d.innerHTML=got?('<b>✉ '+m[0]+(newCards.has(i)?' <span class="stamp">YENİ</span>':'')+'</b><span>'+m[1]+'</span>'+(runCards.includes(i)?'<small>bu uçuşta</small>':'')):'<b>? ? ?</b><small>henüz bulunmadı</small>';l.appendChild(d);});
  $('albumCount').textContent=unlocked.size+' / '+cardMsgs.length+' kartpostal · bu uçuşta '+runCards.length;$('album').style.display='flex';}
 $('albumBtn').onclick=$('albumBtn2').onclick=e=>{e.stopPropagation();openAlbum();};$('albumClose').onclick=()=>$('album').style.display='none';
 const goals=[{t:'5 parıltı topla',ok:()=>sparks>=5},{t:'500 m uç',ok:()=>dist>=500},{t:'1 kartpostal bul',ok:()=>cards>=1},{t:'Karlı tepelere ulaş',ok:()=>biome(birdPos.z)===2},
  {t:'Çift dokun: hızlan',ok:()=>boostT>0},{t:'20 parıltı topla',ok:()=>sparks>=20},{t:'Sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'3 kartpostal bul',ok:()=>cards>=3},{t:'Balon festivalini bul',ok:()=>wowSeen},{t:'2000 m uç',ok:()=>dist>=2000}];
-const doneG=new Set(JSON.parse(localStorage.getItem('kk_goals')||'[]'));const DQ=[{t:'Bugün 20 parıltı topla',ok:()=>sparks>=20},{t:'Bugün sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'Bugün 2 kartpostal bul',ok:()=>cards>=2},{t:'Bugün 1500 m uç',ok:()=>dist>=1500},{t:'Bugün ormana ulaş',ok:()=>biome(birdPos.z)===5},{t:'Bugün çöle ulaş',ok:()=>biome(birdPos.z)===4}];
+const doneG=new Set(JSON.parse(localStorage.getItem('kk_goals')||'[]'));const DQ=[{t:'Bugün 20 parıltı topla',ok:()=>DS.s>=20,p:()=>Math.min(20,DS.s)+'/20'},{t:'Bugün sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'Bugün 2 kartpostal bul',ok:()=>DS.c>=2,p:()=>Math.min(2,DS.c)+'/2'},{t:'Bugün 1500 m uç',ok:()=>DS.m>=1500,p:()=>Math.floor(Math.min(1500,DS.m))+'/1500 m'},{t:'Bugün ormana ulaş',ok:()=>biome(birdPos.z)===5},{t:'Bugün çöle ulaş',ok:()=>biome(birdPos.z)===4}];
+const DS=(()=>{const o=JSON.parse(localStorage.getItem('kk_dq')||'{}');return o.d===TODAY?o:{d:TODAY,s:0,m:0,c:0};})();let lS=0,lM=0,lC=0,dsT=0;
+function dailyAcc(dt){if(sparks>lS)DS.s+=sparks-lS;if(dist>lM)DS.m+=dist-lM;if(cards>lC)DS.c+=cards-lC;lS=sparks;lM=dist;lC=cards;dsT-=dt;if(dsT<=0){dsT=2;localStorage.setItem('kk_dq',JSON.stringify(DS));}}
 const dq=DQ[((DAYNUM%DQ.length)+DQ.length)%DQ.length];let dqDone=localStorage.getItem('kk_daily')===TODAY;
-document.getElementById('daily').innerHTML='Bugünün dünyası · '+TODAY.split('-').reverse().join('.')+'<br>🌞 '+dq.t+(dqDone?' ✓':'');
+document.getElementById('daily').innerHTML='Bugünün dünyası · '+TODAY.split('-').reverse().join('.')+'<br>🌞 '+dq.t+(dqDone?' ✓':(dq.p?' ('+dq.p()+')':''));
 function checkDaily(){if(!dqDone&&dq.ok()){dqDone=true;localStorage.setItem('kk_daily',TODAY);setTimeout(()=>{toast('Günlük görev tamam! 🌞 +10 ✦');sparks+=10;chime(1);setTimeout(()=>chime(1.5),150);setTimeout(()=>chime(2),300);for(let i=0;i<4;i++)burst(birdPos,'#ffd27a');},2000);}}
 let gi=0,wowSeen=false;const nextG=()=>{gi=0;while(gi<goals.length&&doneG.has(gi))gi++;};nextG();function showGoal(){$('goal').textContent=gi<goals.length?'🎯 '+goals[gi].t:'🎯 Keşfetmeye devam!';}showGoal();
 function checkGoal(){if(gi<goals.length&&goals[gi].ok()){toast('Hedef tamam: '+goals[gi].t+' ✦');for(let i=0;i<3;i++)burst(birdPos,['#fff1a0','#e8766b','#9fdbe6'][i]);chime(1);setTimeout(()=>chime(1.33),130);setTimeout(()=>chime(1.6),260);sparks+=3;doneG.add(gi);goalsRun++;localStorage.setItem('kk_goals',JSON.stringify([...doneG]));nextG();setTimeout(showGoal,1600);}}
@@ -288,6 +307,12 @@ function showSummary(auto){const prevBest=+localStorage.getItem('kk_best')||0;lo
 $('stop').onclick=()=>showSummary(false);$('sumGo').onclick=()=>{$('summary').style.display='none';dist=0;sparks=0;cards=0;goalsRun=0;runCards.length=0;sumShown=false;boostT=0;birdPos.y+=3;toast('Yeni uçuş!');if(newBestRun){savePath();gPath=recPath;}newBestRun=false;recPath=[];runT=0;runZ0=birdPos.z;placeGhost();};
 $('share').onclick=async()=>{const txt='Kağıt Kuş ile '+Math.floor(dist)+' m uçtum! ✦ '+sparks+' parıltı, ✉ '+cards+' kartpostal topladım. En iyi: '+Math.floor(best)+' m 🕊️ '+location.href;
  try{if(navigator.share){await navigator.share({text:txt});return;}await navigator.clipboard.writeText(txt);toast('Panoya kopyalandı ✓');}catch(e){toast('Paylaşılamadı');}};
+const ALPH='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';function enc(n,len){let o='';for(let i=0;i<len;i++){o=ALPH[n%32]+o;n=Math.floor(n/32);}return o;}function dec(str){let n=0;for(const c of str){const v=ALPH.indexOf(c);if(v<0)return NaN;n=n*32+v;}return n;}
+function makeCode(){const b=Math.min(32767,Math.floor(best)),c=Math.min(31,unlocked.size),d=((DAYNUM%1024)+1024)%1024;const ck=(b*7+c*13+d*3)%32;return 'KK-'+enc(b,3)+enc(c,1)+enc(d,2)+enc(ck,1);}
+function readCode(code){code=code.trim().toUpperCase().replace(/^KK-?/,'');if(code.length!==7)return null;const b=dec(code.slice(0,3)),c=dec(code.slice(3,4)),d=dec(code.slice(4,6)),ck=dec(code.slice(6));if([b,c,d,ck].some(isNaN)||(b*7+c*13+d*3)%32!==ck)return null;return {b,c,d};}
+$('codeCopy').onclick=async()=>{const c=makeCode();try{await navigator.clipboard.writeText(c);toast('Kod kopyalandı: '+c);}catch(e){prompt('Kodun:',c);}};
+$('codeIn').onclick=e=>{e.stopPropagation();const v=prompt('Arkadaşının kodunu gir (KK-…)');if(!v)return;const r=readCode(v);if(!r){toast('Kod geçersiz');return;}
+ const today=((DAYNUM%1024)+1024)%1024===r.d;toast('Sen '+Math.floor(best)+' m · Arkadaş '+r.b+' m'+(today?' (bugün)':'')+' · ✉ '+unlocked.size+' / '+r.c);};
 $('sumCont').onclick=()=>$('summary').style.display='none';
 function syncSet(){$('sVol').value=SET.vol;$('sSens').value=SET.sens;$('sGhost').checked=SET.ghost;$('sFast').checked=SET.fastDay;$('sInv').checked=SET.invY;}
 $('setBtn').onclick=e=>{e.stopPropagation();syncSet();$('settings').style.display='flex';};$('setClose').onclick=()=>$('settings').style.display='none';
@@ -308,9 +333,10 @@ const ffMat=new THREE.SpriteMaterial({map:glowTex,color:'#e9ff9a',blending:THREE
 const ffs=[];for(let i=0;i<50;i++){const f=new THREE.Sprite(ffMat);f.scale.setScalar(.9);f.userData={ph:Math.random()*6,off:new THREE.Vector3((Math.random()-.5)*50,Math.random()*8,-Math.random()*50)};scene.add(f);ffs.push(f);}
 const stG=new THREE.BufferGeometry();{const a=[];for(let i=0;i<400;i++){const v=new THREE.Vector3().randomDirection();v.y=Math.abs(v.y)*.8+.1;v.normalize().multiplyScalar(240);a.push(v.x,v.y,v.z);}stG.setAttribute('position',new THREE.Float32BufferAttribute(a,3));}
 const stM=new THREE.PointsMaterial({color:'#fffbe8',size:1.6,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false});const stars=new THREE.Points(stG,stM);scene.add(stars);
+let qMode2=0;
 cam.far=520;cam.updateProjectionMatrix();
 const moon=new THREE.Group();{const md=new THREE.Mesh(new THREE.CircleGeometry(7,24),new THREE.MeshBasicMaterial({color:'#fff8e6',transparent:true,opacity:0,fog:false,depthWrite:false}));const mg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:'#fff1d0',transparent:true,opacity:0,fog:false,depthWrite:false}));mg.scale.setScalar(45);moon.add(mg,md);moon.userData={md,mg};scene.add(moon);}
-function nightFx(){moon.visible=dusk>.02;moon.position.copy(cam.position).add(tmp.set(-90,110,-200));moon.lookAt(cam.position);moon.userData.md.material.opacity=dusk;moon.userData.mg.material.opacity=dusk*.5;const fb=biome(birdPos.z)===5?1:.3;ffMat.opacity=dusk*fb*.9;stM.opacity=dusk*.85;stars.position.copy(cam.position);stars.visible=dusk>.02;
+function nightFx(){moon.visible=dusk>.02;cam.getWorldDirection(tmp);tmp.y=0;tmp.normalize();moon.position.copy(cam.position).addScaledVector(tmp,230).add(new THREE.Vector3(-30,cam.position.y*0+14,0));moon.lookAt(cam.position);moon.userData.md.material.opacity=dusk;moon.userData.mg.material.opacity=dusk*.5;const fb=biome(birdPos.z)===5?1:.3;ffMat.opacity=dusk*fb*.9;stM.opacity=dusk*.85;stars.position.copy(cam.position);stars.visible=dusk>.02;
  for(const f of ffs){f.visible=dusk>.05;if(!f.visible)continue;const u=f.userData;let p=f.position.copy(birdPos).add(u.off);u.off.z+=0;
   if(u.off.z+((birdPos.z%50))>10){}const wz=Math.floor((birdPos.z+u.off.z)/50);f.position.set(u.off.x+birdPos.x*.2+Math.sin(t*.7+u.ph)*2,height(u.off.x,birdPos.z+u.off.z)+1+u.off.y*.5+Math.sin(t*1.3+u.ph)*.6,birdPos.z+u.off.z+(((-birdPos.z)%50)-25)*0);
   f.material.opacity;}}
@@ -326,6 +352,7 @@ function recTick(dt){if(!running)return;runT+=dt;recT-=dt;if(recT<=0&&recPath.le
 function savePath(){if(recPath.length>8)localStorage.setItem('kk_path',JSON.stringify(recPath));}
 function ghostTick(){ghost.visible=SET.ghost&&best>50;if(!ghost.visible)return;{const gd=ghost.position.distanceTo(birdPos);const k=THREE.MathUtils.clamp(1-(gd-30)/140,0,1);ghost.userData.rib.material.opacity=.12+k*.5;ghost.scale.setScalar(.6+k*.4);}const f=Math.sin(t*8)*.6;ghost.userData.w[0].rotation.z=f;ghost.userData.w[1].rotation.z=-f;ghost.position.y+=Math.sin(t*2)*.01;
  if(!ghostPassed&&running&&birdPos.z<ghost.position.z){ghostPassed=true;toast('Rekor izini geçtin! 🏆');chime(1);setTimeout(()=>chime(1.5),150);for(let i=0;i<3;i++)burst(ghost.position,'#f6a96b');}}
+applyGfx(SET.gfx||(localStorage.getItem('kk_q')==='low'?'low':'high'));
 window.__setFly=v=>flyT=v;window.__dyn=dynamic;
 const TUT=[['☝️','Parmakla yönlendir','Ekranı sürükle: sağa-sola döner, yukarı-aşağı yükselir.'],['💨','Hızlan','Çift dokun ya da 💨 düğmesine bas.'],['✦ ✉','Topla','Parıltılardan ve kartpostallardan geç; albümünü doldur.']];let tutI=0;
 function showTut(){tutI=0;renderTut();$('tut').style.display='flex';}function renderTut(){const c=TUT[tutI];$('tutCard').innerHTML='<div class="ti">'+c[0]+'</div><h3>'+c[1]+'</h3><p>'+c[2]+'</p><small>'+(tutI+1)+' / 3 · dokun</small>';}
@@ -390,17 +417,17 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
   else if(d.type==='mill'){d.sp+=((dd<150?6:1)-d.sp)*dt;d.hub.rotation.z+=d.sp*dt;}
   else if(d.type==='balloon'){if(o.position.distanceTo(birdPos)<5.5&&d.push<.3){d.push=1;chime(.7);loftT=1.2;toast('Balon seni yukarı itti! 🎈');}d.push*=1-dt*.8;o.position.y=d.y0+Math.sin(t*.7+d.ph)*.8+d.push*2;o.rotation.z=Math.sin(t*.9+d.ph)*.05+Math.sin(t*6)*d.push*.1;}
   else if(d.type==='cloud'){o.position.x+=dt*1.2;const dy=birdPos.y-o.position.y;if(dd<30&&Math.abs(dy)<3)inCloud=true;}}
- fogBoost+=((inCloud?1:0)-fogBoost)*dt*3;scene.fog.near=60-fogBoost*55;scene.fog.far=190-fogBoost*160;
+ fogBoost+=((inCloud?1:0)-fogBoost)*dt*3;scene.fog.near=(60-fogBoost*55)*FOGK;scene.fog.far=(190-fogBoost*160)*FOGK;
  for(let i=flock.length-1;i>=0;i--){const f=flock[i];f.t+=dt;f.m.position.addScaledVector(f.v,dt);f.m.rotation.x+=dt*20;if(f.t>3){scene.remove(f.m);flock.splice(i,1);}}
  for(let i=bursts.length-1;i>=0;i--){const b=bursts[i];b.t+=dt;b.m.position.addScaledVector(b.v,dt);b.v.multiplyScalar(1-dt*3);b.m.scale.setScalar(Math.max(0,1-b.t*1.5));if(b.t>.8){scene.remove(b.m);bursts.splice(i,1);}}
  trailT-=dt;if(running&&trailT<=0){trailT=.06;for(const w of[1,-1]){const p=trail[trailI++%trail.length];p.position.copy(birdPos).add(tmp.set(w*1.3*Math.cos(bank),-.1+w*Math.sin(-bank)*1.3,.6));p.userData.t=0;p.visible=true;}}
  for(const p of trail)if(p.visible){p.userData.t+=dt;p.material.opacity;p.scale.setScalar(.6+p.userData.t*1.5);if(p.userData.t>1)p.visible=false;}
  const bq=biome(birdPos.z);ptT-=dt;if(running&&(bq===1||bq===2)&&ptT<=0){ptT=.08;const p=pts[ptI++%pts.length];p.material=bq===2?snowM:leafM[ptI%3];p.position.set(birdPos.x+(Math.random()-.5)*24,birdPos.y+6+Math.random()*6,birdPos.z-6-Math.random()*20);p.userData.t=0;p.userData.s=bq;p.visible=true;}
  for(const p of pts)if(p.visible){p.userData.t+=dt;p.position.y-=dt*(p.userData.s===2?2:1.4);p.position.x+=Math.sin(t*2+p.id)*dt*1.5;p.rotation.x+=dt*3;p.rotation.y+=dt*2;if(p.userData.t>5)p.visible=false;}
- if(running&&qMode==='auto'){fpsAcc+=dt;fpsN++;if(fpsAcc>1){const f=fpsN/fpsAcc;fpsAcc=0;fpsN=0;lowSec=f<35?lowSec+1:0;if(lowSec>=4&&!lowQ){setQ(true);toast('Kalite düşürüldü ◐');}}}
+ if(running&&qMode==='auto'){fpsAcc+=dt;fpsN++;if(fpsAcc>1){const f=fpsN/fpsAcc;fpsAcc=0;fpsN=0;lowSec=f<35?lowSec+1:0;if(lowSec>=4&&SET.gfx!=='low'){const nk=SET.gfx==='mid'?'low':'mid';applyGfx(nk);lowSec=0;toast('Grafik otomatik: '+(nk==='low'?'Düşük':'Orta'));}}}
  recTick(dt);if(running&&dist>best){best=dist;newBestRun=true;if(Math.floor(dist)%20==0){localStorage.setItem('kk_best',Math.floor(best));savePath();}}
  wind(spd,vy);
- if(running){for(const ch of chunks)if(ch.wow&&Math.abs(ch.z0-30-birdPos.z)<40)wowSeen=true;checkGoal();checkDaily();}
+ if(running){for(const ch of chunks)if(ch.wow&&Math.abs(ch.z0-30-birdPos.z)<40)wowSeen=true;checkGoal();dailyAcc(dt);checkDaily();}
  flyT+=running?dt:0;dayCycle(SET.fastDay?flyT*6+30:flyT+30);nightFx();ghostTick();
  if(running&&dist>=2000&&!sumShown){sumShown=true;setTimeout(()=>showSummary(true),1200);}
  if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').style.opacity=0;}
