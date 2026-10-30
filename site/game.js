@@ -53,7 +53,7 @@ function dayCycle(tt){capTick();const p=(tt/DAYLEN*4)%4,i=Math.floor(p),f=THREE.
  SKY.copy(a.sky).lerp(b.sky,f);scene.fog.color.copy(SKY);sun.color.copy(a.sun).lerp(b.sun,f);sun.intensity=a.si+(b.si-a.si)*f;hemi.intensity=a.hi+(b.hi-a.hi)*f;hemi.color.copy(a.hs).lerp(b.hs,f);
  dusk=(i===3?1-f:0)+(i===2?f:0);}
 const sun=new THREE.DirectionalLight('#fff1d6',2.2);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
-Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:240});sun.shadow.radius=2;sun.shadow.intensity=.55;sun.shadow.bias=-.0008;
+Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:240});sun.shadow.radius=2;sun.shadow.intensity=.45;sun.shadow.bias=-.0008;
 scene.add(sun,sun.target);
 // cloud shadow shader injection
 const U={uTime:{value:0}};const URV={value:new THREE.Vector3()};
@@ -89,8 +89,8 @@ const groundMat=cloudify(new THREE.MeshLambertMaterial({vertexColors:true}));
    diffuseColor.rgb=mix(diffuseColor.rgb,paddy,pw);}}
   {float sw=smoothstep(.3,.7,vBw.y);if(sw>.01){float shore=-11.-n2(vec2(vW.z*.03,1.))*7.;float sd=dxr-shore;
    vec3 sea=mix(vec3(.03,.11,.38),vec3(.08,.24,.55),smoothstep(-1.,-6.,sd)*0.+smoothstep(-4.,0.,sd)*.5)+n2(vW.xz*vec2(.08,.2)+uTime*.05)*.04;
-   sea+=step(.993,h2(floor(vW.xz*1.6)+floor(uTime*1.5)*.37))*.3;float foam=(1.-smoothstep(0.,.5,abs(sd+.6+sin(vW.z*.2+uTime*1.2)*.25)))*.6;sea=mix(sea,vec3(.95),foam);
-   vec3 sand=vec3(.78,.68,.4);vec3 cc=sd<0.?sea:mix(sand,diffuseColor.rgb,smoothstep(1.,3.,sd));diffuseColor.rgb=mix(diffuseColor.rgb,cc,sw);}}}`);};}
+   sea+=step(.993,h2(floor(vW.xz*1.6)+floor(uTime*1.5)*.37))*.3;float foam=(1.-smoothstep(0.,.25,abs(sd+.35+sin(vW.z*.2+uTime*1.2)*.15)))*.55;sea=mix(sea,vec3(.95),foam);
+   vec3 sand=vec3(.78,.68,.4);vec3 cc=sd<0.?sea:mix(sand,diffuseColor.rgb,smoothstep(.3,1.,sd));diffuseColor.rgb=mix(diffuseColor.rgb,cc,sw);}}}`);};}
 const lam=c=>cloudify(new THREE.MeshLambertMaterial({color:c}));
 // ---------- shared geoms ----------
 const G={cone:new THREE.ConeGeometry(1,2.4,6),ball:new THREE.IcosahedronGeometry(1.25,2),trunk:new THREE.CylinderGeometry(.18,.25,1,5),
@@ -100,7 +100,7 @@ G.trunk.translate(0,.5,0);G.fern.translate(0,.5,0);G.cact.translate(0,1.1,0);G.m
 const M={trunk:lam('#9a7458'),wall:lam('#fbf3e4'),roofs:['#e07a5f','#7aa6c2','#e9b35d'].map(lam),wool:lam('#fffaf2'),dark:lam('#4a3f39'),
  cow:lam('#4a3a2e'),hay:lam('#e2c77a'),cact:lam('#7fb685'),sandrock:lam('#e0a979'),inst:lam('#ffffff'),rock:lam('#b9b2a8'),fl1:lam('#f7b2c8'),fl2:lam('#fff0a0'),fox:lam('#ef8f4a'),
  spark:new THREE.MeshBasicMaterial({color:'#fff3a8'}),card:new THREE.MeshLambertMaterial({color:'#fffdf6'}),stamp:new THREE.MeshBasicMaterial({color:'#e8766b'}),
- cloud:new THREE.MeshLambertMaterial({color:'#ffffff',emissive:'#a8a8a8'})};
+ cloud:new THREE.MeshBasicMaterial({color:'#ffffff'})};
 const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);
  g.addColorStop(0,'rgba(255,250,210,1)');g.addColorStop(.35,'rgba(255,230,150,.55)');g.addColorStop(1,'rgba(255,220,140,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
 const glowMat=new THREE.SpriteMaterial({map:glowTex,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,fog:false});
@@ -132,8 +132,8 @@ function buildChunk(ch,idx){
  const TB=[];const addTree=(x,h,z,sx,sy,ry,kind,col,birds)=>{const o=new THREE.Object3D();o.position.set(x,h,z);o.scale.set(sx,sy,sx);o.rotation.y=ry;o.updateMatrix();const rec={o,kind,col};TB.push(rec);
   dynamic.push({type:'tree',o,rec,chunk:ch,ph:r()*6,sway:0,hasBirds:birds});};
  const forest=biome(z0-30)===5;
- const CLU=[];for(let k=0;k<(forest?9:5);k++)CLU.push([(r()-.5)*CW*.8,z0-r()*CL,2.5+r()*4]);
- for(let i=0;i<(forest?60:30)*PROPK;i++){const cc=CLU[i%CLU.length];const x=cc[0]+(r()-.5)*cc[2]*2,z=cc[1]+(r()-.5)*cc[2]*2;const h=height(x,z);if(h<-.2||h>12)continue;
+ const CLU=[];const autumn=biome(z0-30)===1;for(let k=0;k<(forest?9:autumn?10:5);k++)CLU.push([(r()-.5)*CW*.8,z0-r()*CL,2.5+r()*4]);
+ for(let i=0;i<(forest?60:autumn?60:30)*PROPK;i++){const cc=CLU[i%CLU.length];const x=cc[0]+(r()-.5)*cc[2]*2,z=cc[1]+(r()-.5)*cc[2]*2;const h=height(x,z);if(h<-.2||h>12)continue;
   if(Math.abs(x-riverX(z))<7&&r()<.7)continue;
   if(biome(z)===4){if(r()<.8)continue;const cc=new THREE.Group();const cb=new THREE.Mesh(G.cact,M.cact);cb.castShadow=true;cc.add(cb);for(const sd of[-1,1])if(r()<.7){const arm=new THREE.Mesh(G.cact,M.cact);arm.scale.set(.6,.4,.6);arm.position.set(sd*.45,.9+r()*.5,0);cc.add(arm);}cc.position.set(x,h,z);cc.scale.setScalar(.8+r()*.6);g.add(cc);dynamic.push({type:'wobble',o:cc,chunk:ch,w:0});continue;}
   const bz=biome(z);const s=.7+r()*.8;const col=pal[bz].tree[Math.floor(r()*3)];const tall=bz===5?1.3+r()*.9:1;
@@ -240,7 +240,7 @@ let revT=0;function reveal(i){const m=cardMsgs[i];const r=document.getElementByI
 function boost(){if(boostT>0)return;boostT=1.2;buzz(30);toast('Hızlan!');whoosh();for(let i=0;i<6;i++)burst(birdPos,'#ffffff');}
 let sIx=0,sIy=0;const tilt={x:0,y:0,on:false};let tx=0,ty=0,active=false,sx=0,sy=0,bx=0,by=0;
 const el=renderer.domElement;
-let lastTap=0;function down(x,y){const nt=performance.now();if(running&&nt-lastTap<300)boost();lastTap=nt;if(AC&&AC.state!=='running')AC.resume();active=true;sx=x;sy=y;bx=tx;by=ty;hideHint();}
+let lastTap=0;function down(x,y){if(running&&x>innerWidth-90&&y>innerHeight-200)dimSoon();const nt=performance.now();if(running&&nt-lastTap<300)boost();lastTap=nt;if(AC&&AC.state!=='running')AC.resume();active=true;sx=x;sy=y;bx=tx;by=ty;hideHint();}
 function move(x,y){if(!active)return;const s=Math.min(innerWidth,innerHeight)*.28/SET.sens;tx=THREE.MathUtils.clamp(bx+(x-sx)/s,-1,1);ty=THREE.MathUtils.clamp(by-(SET.invY?-1:1)*(y-sy)/s,-1,1);}
 function up(){active=false;}
 el.addEventListener('pointerdown',e=>{if(e.isPrimary===false){boost();return;}el.setPointerCapture(e.pointerId);down(e.clientX,e.clientY);});
@@ -248,7 +248,8 @@ el.addEventListener('pointermove',e=>move(e.clientX,e.clientY));
 el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
 const keys={};addEventListener('keydown',e=>keys[e.key]=1);addEventListener('keyup',e=>keys[e.key]=0);
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
-let hinted=false;function hideHint(){if(!hinted){hinted=true;setTimeout(()=>document.getElementById('hint').style.opacity=0,1800);}}
+let hinted=false;function dimSoon(){const b=document.getElementById('btns');b.classList.remove('dim');clearTimeout(window.__dt);window.__dt=setTimeout(()=>b.classList.add('dim'),3000);}
+function hideHint(){document.getElementById('hint').style.opacity=0;if(!hinted){hinted=true;setTimeout(()=>document.getElementById('hint').style.opacity=0,1800);}}
 // ---------- UI ----------
 let dist=0,sparks=0,cards=0,running=false;const $=id=>document.getElementById(id);
 let toastT=0;function toast(s){const t=$('toast');t.textContent=s;t.style.opacity=1;toastT=1.6;}
@@ -263,7 +264,7 @@ const cardMsgs=[
 ['Orman Fısıltısı','Çamların arasında mantarlar bize göz kırptı.',5],['Ateş Böcekleri','Ormanda akşam: minik fenerler etrafımızda dans ediyor.',5],
 ['Kum Tepeleri','Çölde kaktüsler sıcaktan şapka istiyor.',4],['Serap','Ufukta bir göl gördük… yoksa serap mıydı?',4],
 ['Uçsuz Ova','Pampa o kadar geniş ki rüzgâr bile yoruluyor.',2],['Deniz Kabuğu','Sahilde dalgalar bize bir kabuk bıraktı.',3],['Arı Vızıltısı','Bahar sabahı: arılar çiçekten çiçeğe koşturuyor.',0],['Yaprak Dansı','Rüzgâr esti, sonbahar yaprakları bizimle uçtu.',1]];
-$('go').onclick=()=>{$('hint').style.display='';initAudio();runZ0=birdPos.z;placeGhost();runT=0;recPath=[];if(!localStorage.getItem('kk_tut'))showTut();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
+$('go').onclick=()=>{$('hint').style.display='';setTimeout(()=>{$('hint').style.opacity=0;hinted=true;},4000);dimSoon();initAudio();runZ0=birdPos.z;placeGhost();runT=0;recPath=[];if(!localStorage.getItem('kk_tut'))showTut();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
 // ---------- loop ----------
 const trailMat=new THREE.SpriteMaterial({map:glowTex,color:'#ffffff',transparent:true,opacity:.35,depthWrite:false});
 const pts=[];const snowM=new THREE.MeshBasicMaterial({color:'#ffffff'}),leafM=['#f0a35e','#e5c45a','#d9785a'].map(c=>new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));const ptG=new THREE.PlaneGeometry(.22,.22);
