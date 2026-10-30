@@ -51,10 +51,10 @@ const lam=c=>cloudify(new THREE.MeshLambertMaterial({color:c,flatShading:true}))
 // ---------- shared geoms ----------
 const G={cone:new THREE.ConeGeometry(1,2.4,6),ball:new THREE.IcosahedronGeometry(1,0),trunk:new THREE.CylinderGeometry(.18,.25,1,5),
  box:new THREE.BoxGeometry(1,1,1),roof:new THREE.ConeGeometry(.85,.7,4),sheep:new THREE.IcosahedronGeometry(.55,0),head:new THREE.BoxGeometry(.3,.3,.35),
- spark:new THREE.OctahedronGeometry(.6,0),card:new THREE.BoxGeometry(1.6,1.1,.08),cloud:new THREE.IcosahedronGeometry(1,1)};
+ spark:new THREE.OctahedronGeometry(.6,0),card:new THREE.BoxGeometry(1.6,1.1,.08),cloud:new THREE.IcosahedronGeometry(1,1),sail:new THREE.ConeGeometry(.7,1.8,3),snowB:new THREE.IcosahedronGeometry(.6,1),nose:new THREE.ConeGeometry(.08,.35,4),flower:new THREE.IcosahedronGeometry(.18,0),leaf:new THREE.CircleGeometry(.35,5)};
 G.trunk.translate(0,.5,0);G.cone.translate(0,1.2+.8,0);G.ball.translate(0,1.8,0);G.box.translate(0,.5,0);
 const M={trunk:lam('#9a7458'),wall:lam('#fbf3e4'),roofs:['#e07a5f','#7aa6c2','#e9b35d'].map(lam),wool:lam('#fffaf2'),dark:lam('#4a3f39'),
- cow:lam('#f2e6d6'),fox:lam('#ef8f4a'),
+ cow:lam('#f2e6d6'),rock:lam('#b9b2a8'),fl1:lam('#f7b2c8'),fl2:lam('#fff0a0'),fox:lam('#ef8f4a'),
  spark:new THREE.MeshBasicMaterial({color:'#fff3a8'}),card:new THREE.MeshLambertMaterial({color:'#fffdf6'}),stamp:new THREE.MeshBasicMaterial({color:'#e8766b'}),
  cloud:new THREE.MeshLambertMaterial({color:'#ffffff',transparent:true,opacity:.92,flatShading:true})};
 const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);
@@ -103,13 +103,25 @@ function buildChunk(ch,idx){
    body.position.y=.55;body.scale.set(1,.85,1.25);const hd=new THREE.Mesh(G.head,M.dark);hd.position.set(0,.75,.6);
    body.castShadow=true;a.add(body,hd);a.position.set(x,h,z);a.rotation.y=r()*6;a.scale.setScalar(kind<.8?1:.7);g.add(a);
    dynamic.push({type:'animal',o:a,chunk:ch,head:hd,vel:new THREE.Vector3(),hop:0,scared:0,ph:r()*6});}}
+ // biome props
+ for(let i=0;i<14;i++){const x=(r()-.5)*CW*.8,z=z0-r()*CL,h=height(x,z);const bi=biome(z);
+  if(bi===3){if(h>-1.6&&h<-.3&&r()<.6){const rk=new THREE.Mesh(G.ball,M.rock);rk.scale.set(.8+r(),.5+r()*.5,.8+r());rk.position.set(x,h-1.6,z);rk.castShadow=true;g.add(rk);}
+   else if(h<-1.5&&r()<.25){const bt=new THREE.Group();const hull=new THREE.Mesh(G.box,M.roofs[Math.floor(r()*3)]);hull.scale.set(1,.5,2.4);const sail=new THREE.Mesh(G.sail,M.wool);sail.position.set(0,1.6,0);bt.add(hull,sail);bt.position.set(x,-1.5,z);bt.rotation.y=r()*6;hull.castShadow=sail.castShadow=true;g.add(bt);dynamic.push({type:'boat',o:bt,chunk:ch,ph:r()*6,rock:0});}
+   else if(h>-.4&&h<.6&&r()<.15){const pier=new THREE.Mesh(G.box,M.trunk);pier.scale.set(1.4,.25,7);const xs=dx=>x;pier.position.set(x,-.9,z);pier.rotation.y=Math.PI/2*(x<riverX(z)?1:-1)*.0;g.add(pier);}}
+  else if(h<-.3||h>12)continue;
+  else if(bi===2){if(r()<.6){const sm=new THREE.Group();const b1=new THREE.Mesh(G.snowB,M.wool),b2=new THREE.Mesh(G.snowB,M.wool),nose=new THREE.Mesh(G.nose,M.fox);
+    b1.position.y=.6;b2.position.y=1.45;b2.scale.setScalar(.65);nose.position.set(0,1.5,.42);nose.rotation.x=Math.PI/2;b1.castShadow=b2.castShadow=true;sm.add(b1,b2,nose);sm.position.set(x,h,z);sm.rotation.y=r()*6;g.add(sm);dynamic.push({type:'wobble',o:sm,chunk:ch,w:0});}
+   else{const t=new THREE.Group();const tr=new THREE.Mesh(G.trunk,M.trunk),top=new THREE.Mesh(G.cone,treeMats[6+Math.floor(r()*2)]);tr.castShadow=top.castShadow=true;t.add(tr,top);t.position.set(x,h,z);t.scale.set(.7,1+r()*.6,.7);g.add(t);dynamic.push({type:'tree',o:t,chunk:ch,ph:r()*6,sway:0,hasBirds:false});}}
+  else{const patch=new THREE.Group();const mats=bi===1?[treeMats[3],treeMats[4],treeMats[5]]:[M.fl1,M.fl2,M.wool];
+   for(let j=0;j<7;j++){const f=new THREE.Mesh(bi===1?G.leaf:G.flower,mats[j%3]);const px=(r()-.5)*3,pz=(r()-.5)*3;f.position.set(px,height(x+px,z+pz)-h+(bi===1?.05:.35),pz);if(bi===1)f.rotation.set(-Math.PI/2,0,r()*6);patch.add(f);}
+   patch.position.set(x,h,z);g.add(patch);if(bi===0)dynamic.push({type:'flowers',o:patch,chunk:ch,ph:r()*6,sway:0});}}
  // sparkles (trail line)
  const sx=(r()-.5)*40,sz=z0-10-r()*30;const sy=height(sx,sz)+5+r()*8;const dir=(r()-.5)*.6;
- for(let i=0;i<6;i++){const s=new THREE.Mesh(G.spark,M.spark);const gl=new THREE.Sprite(glowMat);gl.scale.setScalar(3.2);s.add(gl);s.position.set(sx+i*dir*6,sy+Math.sin(i*.8)*1.5,sz-i*4);g.add(s);
+ for(let i=0;i<6;i++){const s=new THREE.Mesh(G.spark,M.spark);const gl=new THREE.Sprite(glowMat.clone());gl.scale.setScalar(3.2);s.add(gl);s.position.set(sx+i*dir*6,sy+Math.sin(i*.8)*1.5,sz-i*4);g.add(s);
   dynamic.push({type:'spark',o:s,chunk:ch,taken:false,t:0});}
  // postcard
  if(r()<.45){const x=(r()-.5)*50,z=z0-r()*CL;const c=new THREE.Group();const card=new THREE.Mesh(G.card,M.card);
-  const st=new THREE.Mesh(new THREE.PlaneGeometry(.35,.4),M.stamp);st.position.set(.5,.25,.05);const gl2=new THREE.Sprite(glowMat);gl2.scale.setScalar(4.5);c.add(card,st,gl2);
+  const st=new THREE.Mesh(new THREE.PlaneGeometry(.35,.4),M.stamp);st.position.set(.5,.25,.05);const gl2=new THREE.Sprite(glowMat.clone());gl2.scale.setScalar(4.5);c.add(card,st,gl2);
   c.position.set(x,Math.max(height(x,z),0)+7+r()*6,z);g.add(c);dynamic.push({type:'card',o:c,chunk:ch,taken:false,t:0});}
  // clouds
  for(let i=0;i<2;i++){const cl=new THREE.Group();const x=(r()-.5)*90,z=z0-r()*CL,y=17+r()*8;
@@ -153,11 +165,15 @@ let hinted=false;function hideHint(){if(!hinted){hinted=true;setTimeout(()=>docu
 // ---------- UI ----------
 let dist=0,sparks=0,cards=0,running=false;const $=id=>document.getElementById(id);
 let toastT=0;function toast(s){const t=$('toast');t.textContent=s;t.style.opacity=1;toastT=1.6;}
-const cardMsgs=['Kartpostal: Selamlar vadiden!','Kartpostal: Köy fırını burada!','Kartpostal: Nehir kenarında piknik','Kartpostal: Bulutların arasından','Kartpostal: Sonbahar geldi!'];
+const cardMsgs=['Kartpostal: Selamlar vadiden!','Kartpostal: Köy fırını burada!','Kartpostal: Nehir kenarında piknik','Kartpostal: Bulutların arasından','Kartpostal: Sonbahar geldi!','Kartpostal: Kardan adamlar el sallıyor','Kartpostal: İskelede gün batımı','Kartpostal: Çiçek tarlasında bahar','Kartpostal: Martılar selam söylüyor','Kartpostal: Dağların zirvesinden'];
 $('go').onclick=()=>{initAudio();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
 // ---------- loop ----------
 const trailMat=new THREE.SpriteMaterial({map:glowTex,color:'#ffffff',transparent:true,opacity:.35,depthWrite:false});
-const trail=[];for(let i=0;i<40;i++){const p=new THREE.Sprite(trailMat);p.visible=false;p.userData.t=0;scene.add(p);trail.push(p);}let trailI=0,trailT=0,fpsAcc=0,fpsN=0,lowQ=false;
+const pts=[];const snowM=new THREE.MeshBasicMaterial({color:'#ffffff'}),leafM=['#f0a35e','#e5c45a','#d9785a'].map(c=>new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));const ptG=new THREE.PlaneGeometry(.22,.22);
+for(let i=0;i<70;i++){const p=new THREE.Mesh(ptG,snowM);p.visible=false;p.userData.t=0;scene.add(p);pts.push(p);}let ptI=0,ptT=0;
+const trail=[];for(let i=0;i<40;i++){const p=new THREE.Sprite(trailMat);p.visible=false;p.userData.t=0;scene.add(p);trail.push(p);}let qMode=localStorage.getItem('kk_q')||'auto',lowSec=0;
+function setQ(low){lowQ=low;renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,2));sun.castShadow=!low;renderer.shadowMap.enabled=!low;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});document.getElementById('qual').textContent=low?'◐':'✨';}
+let trailI=0,trailT=0,fpsAcc=0,fpsN=0,lowQ=false;
 let best=+localStorage.getItem('kk_best')||0;$('best').textContent=best?('En iyi: '+Math.floor(best)+' m'):'';
 addEventListener('pagehide',()=>localStorage.setItem('kk_best',Math.floor(best)));
 // audio
@@ -179,6 +195,13 @@ $('tilt').onclick=async()=>{if(tilt.on){tilt.on=false;removeEventListener('devic
  try{if(window.DeviceOrientationEvent?.requestPermission){if(await DeviceOrientationEvent.requestPermission()!=='granted')return;}}catch(e){return;}
  tilt.on=true;tilt0=null;addEventListener('deviceorientation',onOri);$('tilt').style.opacity=1;toast('Eğme kontrolü açık');};
 if(!window.DeviceOrientationEvent)$('tilt').style.display='none';
+$('qual').onclick=()=>{qMode=lowQ?'high':'low';localStorage.setItem('kk_q',qMode);setQ(qMode==='low');};if(qMode==='low')setQ(true);
+// album
+const unlocked=new Set(JSON.parse(localStorage.getItem('kk_cards')||'[]'));const runCards=[];
+function openAlbum(){const l=$('albumList');l.innerHTML='';cardMsgs.forEach((m,i)=>{const d=document.createElement('div');const got=unlocked.has(i);d.className='ac'+(got?'':' lock');
+ d.innerHTML=got?('<b>✉ '+m.replace('Kartpostal: ','')+'</b>'+(runCards.includes(i)?'<small>bu uçuşta</small>':'')):'<b>? ? ?</b><small>henüz bulunmadı</small>';l.appendChild(d);});
+ $('albumCount').textContent=unlocked.size+' / '+cardMsgs.length+' kartpostal · bu uçuşta '+runCards.length;$('album').style.display='flex';}
+$('albumBtn').onclick=$('albumBtn2').onclick=e=>{e.stopPropagation();openAlbum();};$('albumClose').onclick=()=>$('album').style.display='none';
 const clock=new THREE.Clock();const tmp=new THREE.Vector3();let fogBoost=0,t=0;
 const camPos=new THREE.Vector3(0,16,14);
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);t+=dt;U.uTime.value=t;
@@ -217,17 +240,22 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
   else if(d.type==='house'){if(dd<50&&d.pop<=0){d.pop=1;burst(tmp.copy(o.position).add(new THREE.Vector3(0,3,0)),'#ffffff');}
    if(d.pop>0){d.pop-=dt*1.5;o.scale.set(d.base*(1+Math.sin(d.pop*12)*d.pop*.08),d.base*(1+Math.sin(d.pop*12+1)*d.pop*.12),d.base);}}
   else if(d.type==='spark'||d.type==='card'){
-   if(!d.taken){o.rotation.y+=dt*(d.type==='card'?1:3);o.scale.setScalar(1+Math.sin(t*5+o.position.z)*.15);o.position.y+=Math.sin(t*3+o.position.z)*.01;
+   if(!d.taken){const gs=o.children[o.children.length-1];const fd=Math.sqrt(dd);gs.material.opacity=THREE.MathUtils.clamp(1-(fd-scene.fog.near*.5)/(scene.fog.far*.55-scene.fog.near*.5),0,1)*.95;o.rotation.y+=dt*(d.type==='card'?1:3);o.scale.setScalar(1+Math.sin(t*5+o.position.z)*.15);o.position.y+=Math.sin(t*3+o.position.z)*.01;
     if(o.position.distanceTo(birdPos)<(d.type==='card'?2.6:2)){d.taken=true;
-     if(d.type==='spark'){sparks++;burst(o.position,'#fff1a0');chime(1+sparks%6*.12);}else{cards++;burst(o.position,'#e8766b');burst(o.position,'#fff1a0');chime(.8);setTimeout(()=>chime(1.2),120);setTimeout(()=>chime(1.5),240);cardFlash();toast(cardMsgs[cards%cardMsgs.length]);}}}
+     if(d.type==='spark'){sparks++;burst(o.position,'#fff1a0');chime(1+sparks%6*.12);}else{cards++;burst(o.position,'#e8766b');burst(o.position,'#fff1a0');chime(.8);setTimeout(()=>chime(1.2),120);setTimeout(()=>chime(1.5),240);cardFlash();const ci=cards%cardMsgs.length;toast(cardMsgs[ci]);runCards.push(ci);unlocked.add(ci);localStorage.setItem('kk_cards',JSON.stringify([...unlocked]));}}}
    else{d.t+=dt;o.scale.setScalar(Math.max(0,1-d.t*3));o.position.y+=dt*6;}}
+  else if(d.type==='boat'){if(dd<64&&d.rock<.3)d.rock=1;d.rock*=1-dt*.7;o.rotation.z=Math.sin(t*1.3+d.ph)*.05+Math.sin(t*5)*d.rock*.25;o.position.y=-1.5+Math.sin(t*1.1+d.ph)*.08;}
+  else if(d.type==='wobble'){if(dd<49&&d.w<.3){d.w=1;burst(tmp.copy(o.position).add(new THREE.Vector3(0,1.5,0)),'#ffffff');}d.w*=1-dt*1.2;o.rotation.z=Math.sin(t*10)*d.w*.25;o.rotation.x=Math.cos(t*8)*d.w*.15;}
+  else if(d.type==='flowers'){if(dd<36&&d.sway<.3)d.sway=1;d.sway*=1-dt;o.rotation.z=Math.sin(t*2+d.ph)*.05+Math.sin(t*9)*d.sway*.15;}
   else if(d.type==='cloud'){o.position.x+=dt*1.2;const dy=birdPos.y-o.position.y;if(dd<30&&Math.abs(dy)<3)inCloud=true;}}
  fogBoost+=((inCloud?1:0)-fogBoost)*dt*3;scene.fog.near=60-fogBoost*55;scene.fog.far=190-fogBoost*160;
  for(let i=flock.length-1;i>=0;i--){const f=flock[i];f.t+=dt;f.m.position.addScaledVector(f.v,dt);f.m.rotation.x+=dt*20;if(f.t>3){scene.remove(f.m);flock.splice(i,1);}}
  for(let i=bursts.length-1;i>=0;i--){const b=bursts[i];b.t+=dt;b.m.position.addScaledVector(b.v,dt);b.v.multiplyScalar(1-dt*3);b.m.scale.setScalar(Math.max(0,1-b.t*1.5));if(b.t>.8){scene.remove(b.m);bursts.splice(i,1);}}
  trailT-=dt;if(running&&trailT<=0){trailT=.06;for(const w of[1,-1]){const p=trail[trailI++%trail.length];p.position.copy(birdPos).add(tmp.set(w*1.3*Math.cos(bank),-.1+w*Math.sin(-bank)*1.3,.6));p.userData.t=0;p.visible=true;}}
  for(const p of trail)if(p.visible){p.userData.t+=dt;p.material.opacity;p.scale.setScalar(.6+p.userData.t*1.5);if(p.userData.t>1)p.visible=false;}
- fpsAcc+=dt;fpsN++;if(fpsAcc>2){const f=fpsN/fpsAcc;fpsAcc=0;fpsN=0;if(f<40&&!lowQ){lowQ=true;renderer.setPixelRatio(1);sun.castShadow=false;renderer.shadowMap.enabled=false;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});}}
+ const bq=biome(birdPos.z);ptT-=dt;if(running&&(bq===1||bq===2)&&ptT<=0){ptT=.08;const p=pts[ptI++%pts.length];p.material=bq===2?snowM:leafM[ptI%3];p.position.set(birdPos.x+(Math.random()-.5)*24,birdPos.y+6+Math.random()*6,birdPos.z-6-Math.random()*20);p.userData.t=0;p.userData.s=bq;p.visible=true;}
+ for(const p of pts)if(p.visible){p.userData.t+=dt;p.position.y-=dt*(p.userData.s===2?2:1.4);p.position.x+=Math.sin(t*2+p.id)*dt*1.5;p.rotation.x+=dt*3;p.rotation.y+=dt*2;if(p.userData.t>5)p.visible=false;}
+ if(running&&qMode==='auto'){fpsAcc+=dt;fpsN++;if(fpsAcc>1){const f=fpsN/fpsAcc;fpsAcc=0;fpsN=0;lowSec=f<35?lowSec+1:0;if(lowSec>=4&&!lowQ){setQ(true);toast('Kalite düşürüldü ◐');}}}
  if(running&&dist>best){best=dist;if(Math.floor(dist)%20==0)localStorage.setItem('kk_best',Math.floor(best));}
  wind(spd,vy);
  if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').style.opacity=0;}
