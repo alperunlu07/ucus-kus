@@ -1,0 +1,11 @@
+import {chromium} from 'playwright';
+const b=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const p=await b.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});p.on('pageerror',e=>console.log('ERR',e.message));p.on('console',m=>m.type()==='error'&&console.log('C',m.text()));
+await p.goto('http://localhost:8765/');await p.waitForTimeout(1500);
+await p.click('#codeIn');await p.fill('#codeTxt','Bak: KK-2222222 xx');await p.click('#codeGo');console.log('bad?',await p.textContent('#codeRes'));
+const code=await p.evaluate(()=>document.getElementById('codeMine').textContent.split(': ')[1]);await p.fill('#codeTxt','Kodum '+code);await p.click('#codeGo');await p.screenshot({path:'s8.png'});console.log(await p.textContent('#codeRes'));await p.click('#codeClose');
+await p.click('#go');await p.click('#tutSkip').catch(()=>{});
+await p.evaluate(async()=>{const d=window.__dyn.find(d=>d.type==='card'&&!d.taken);if(d){window.__game.birdPos.copy(d.o.position);}await new Promise(r=>setTimeout(r,600));});
+await p.screenshot({path:'s9.png'});await p.click('#reveal').catch(()=>{});
+await p.click('#menuBtn');await p.click('#setBtn');await p.click('#setClose');await p.click('#albumBtn');await p.click('#albumClose');await p.click('#stop');await p.click('#sumGo');
+console.log('flow ok');await b.close();

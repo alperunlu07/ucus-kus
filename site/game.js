@@ -2,6 +2,9 @@ import * as THREE from 'three';
 const SET=Object.assign({vol:.8,sens:1,ghost:true,fastDay:false,invY:false},JSON.parse(localStorage.getItem('kk_set')||'{}'));
 const saveSet=()=>localStorage.setItem('kk_set',JSON.stringify(SET));
 const TODAY=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Istanbul'}).format(new Date());
+const BK='kk_best_'+TODAY,PK='kk_path_'+TODAY;let allBest=Math.max(+localStorage.getItem('kk_best_all')||0,+localStorage.getItem('kk_best')||0);
+for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k&&(k.startsWith('kk_path_')&&k!==PK||k==='kk_path'))localStorage.removeItem(k);}
+function saveBest(){localStorage.setItem(BK,Math.floor(best));if(best>allBest){allBest=best;}localStorage.setItem('kk_best_all',Math.floor(allBest));}
 const SEED=[...TODAY].reduce((h,c)=>(h*31+c.charCodeAt(0))%1000003,7);const DAYNUM=Math.floor(Date.parse(TODAY)/864e5);
 // ---------- noise ----------
 function hash(x,z){const s=Math.sin(x*127.1+z*311.7)*43758.5453;return s-Math.floor(s);}
@@ -203,7 +206,9 @@ function flush(p){for(let i=0;i<5;i++){const m=new THREE.Mesh(fG,M.dark);m.posit
 const bursts=[];function burst(p,color){const mat=new THREE.MeshBasicMaterial({color,transparent:true});
  for(let i=0;i<10;i++){const m=new THREE.Mesh(fG,mat);m.position.copy(p);scene.add(m);bursts.push({m,v:new THREE.Vector3().randomDirection().multiplyScalar(5+Math.random()*4),t:0});}}
 // ---------- input ----------
-let loftT=0,boostT=0,boostCd=0;const baseFov=innerWidth<innerHeight?62:50;function boost(){if(boostT>0)return;boostT=1.2;toast('Hızlan!');whoosh();for(let i=0;i<6;i++)burst(birdPos,'#ffffff');}
+let loftT=0,boostT=0,boostCd=0;const baseFov=innerWidth<innerHeight?62:50;function buzz(p){if(SET.hap!==false&&navigator.vibrate)try{navigator.vibrate(p);}catch(e){}}
+let revT=0;function reveal(i){const m=cardMsgs[i];const r=document.getElementById('reveal');document.getElementById('revCard').innerHTML='<span class="stamp big">YENİ</span><h3>✉ '+m[0]+'</h3><p>'+m[1]+'</p><small>dokun · albüme eklendi</small>';r.classList.remove('show');void r.offsetWidth;r.classList.add('show');r.style.display='flex';clearTimeout(revT);revT=setTimeout(()=>r.style.display='none',4200);}
+function boost(){if(boostT>0)return;boostT=1.2;buzz(30);toast('Hızlan!');whoosh();for(let i=0;i<6;i++)burst(birdPos,'#ffffff');}
 let sIx=0,sIy=0;const tilt={x:0,y:0,on:false};let tx=0,ty=0,active=false,sx=0,sy=0,bx=0,by=0;
 const el=renderer.domElement;
 let lastTap=0;function down(x,y){const nt=performance.now();if(running&&nt-lastTap<300)boost();lastTap=nt;if(AC&&AC.state!=='running')AC.resume();active=true;sx=x;sy=y;bx=tx;by=ty;hideHint();}
@@ -242,8 +247,8 @@ function applyGfx(k,quiet){SET.gfx=k;saveSet();const g=GFX[k];lowQ=k==='low';ren
  scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});document.getElementById('qual').textContent=k==='low'?'◐':k==='mid'?'◑':'✨';document.querySelectorAll('.gfx').forEach(b=>b.classList.toggle('on',b.dataset.g===k));}
 function setQ(low){applyGfx(low?'low':'high');return;lowQ=low;renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,2));sun.castShadow=!low;renderer.shadowMap.enabled=!low;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});document.getElementById('qual').textContent=low?'◐':'✨';}
 let trailI=0,trailT=0,fpsAcc=0,fpsN=0,lowQ=false;
-let best=+localStorage.getItem('kk_best')||0;$('best').textContent=best?('En iyi: '+Math.floor(best)+' m'):'';
-addEventListener('pagehide',()=>{localStorage.setItem('kk_best',Math.floor(best));if(newBestRun)savePath();});
+let best=+localStorage.getItem(BK)||0;$('best').textContent=(best?'Bugün en iyi: '+Math.floor(best)+' m':'')+(allBest?(best?' · ':'')+'Tüm zamanlar: '+Math.floor(allBest)+' m':'');
+addEventListener('pagehide',()=>{saveBest();if(newBestRun)savePath();});
 // audio
 let MASTER=null;let AC=null,muted=localStorage.getItem('kk_mute')==='1',windG=null,windF=null,lastFlap=0;
 function initAudio(){if(AC)return;AC=new (window.AudioContext||window.webkitAudioContext)();MASTER=AC.createGain();MASTER.gain.value=SET.vol;MASTER.connect(AC.destination);const n=AC.sampleRate*2,buf=AC.createBuffer(1,n,AC.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
@@ -255,12 +260,12 @@ function initBeds(){const s2=AC.createBufferSource();s2.buffer=window.__noise;s2
 function beds(){if(!bedG)initBeds();const n=AC.currentTime,b=biome(birdPos.z);let gv=0,ft='bandpass',fq=800,q=.8;
  if(b===5){gv=.035*(.6+.4*Math.sin(t*1.7)*Math.sin(t*.6));ft='highpass';fq=3200;}else if(b===3){gv=.06*(.5+.5*Math.sin(t*.9));ft='lowpass';fq=380;}else if(b===4){gv=.03;ft='bandpass';fq=1500;q=2;}
  bedF.type=ft;bedF.frequency.setTargetAtTime(fq,n,.5);bedF.Q.value=q;bedG.gain.setTargetAtTime(muted?0:gv*(1-dusk*.4),n,.6);padG.gain.setTargetAtTime(muted?0:dusk*.012,n,1.5);}
-let musG=null,musNext=0,musStep=0;const PENT=[0,2,4,7,9,12,14,16];
-function music(){if(!musG){musG=AC.createGain();musG.gain.value=0;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;musG.connect(lp).connect(MASTER);musNext=AC.currentTime+.5;}
+let musLP=null,musFl={r:0,w:'triangle'},musG=null,musNext=0,musStep=0;const PENT=[0,2,4,7,9,12,14,16];
+function music(){if(!musG){musG=AC.createGain();musG.gain.value=0;musLP=AC.createBiquadFilter();musLP.type='lowpass';musLP.frequency.value=2200;musG.connect(musLP).connect(MASTER);musNext=AC.currentTime+.5;}
  musG.gain.setTargetAtTime(muted?0:.05,AC.currentTime,.5);const n=AC.currentTime;if(n<musNext-.1)return;
- const beat=.55+dusk*.25;const root=dusk>.5?57:62;const chordRoot=[0,5,7,3][Math.floor(musStep/8)%4];
+ const beat=.55+dusk*.25;const FL=[{r:0,w:'triangle',lp:2200},{r:-2,w:'triangle',lp:1700},{r:5,w:'sine',lp:3200},{r:2,w:'sine',lp:2800},{r:-4,w:'sawtooth',lp:900},{r:-5,w:'sine',lp:1300}];const fl=FL[biome(birdPos.z)]||FL[0];if(musStep%8===0)musFl=fl;musLP.frequency.setTargetAtTime(fl.lp*(1-dusk*.3),n,2);const root=(dusk>.5?57:62)+musFl.r;const chordRoot=[0,5,7,3][Math.floor(musStep/8)%4];
  if(musStep%8===0){for(const iv of[0,4,7]){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=440*Math.pow(2,(root-12+chordRoot+iv-69)/12);g.gain.setValueAtTime(.0001,musNext);g.gain.linearRampToValueAtTime(.12,musNext+.8);g.gain.linearRampToValueAtTime(.0001,musNext+beat*8);o.connect(g).connect(musG);o.start(musNext);o.stop(musNext+beat*8+.1);}}
- if(Math.random()<(dusk>.5?.35:.6)){const o=AC.createOscillator(),g=AC.createGain();o.type=dusk>.5?'sine':'triangle';const note=root+chordRoot+PENT[Math.floor(Math.random()*PENT.length)];o.frequency.value=440*Math.pow(2,(note-69)/12);
+ if(Math.random()<(dusk>.5?.35:.6)){const o=AC.createOscillator(),g=AC.createGain();o.type=dusk>.5?'sine':musFl.w;const note=root+chordRoot+PENT[Math.floor(Math.random()*PENT.length)];o.frequency.value=440*Math.pow(2,(note-69)/12);
   g.gain.setValueAtTime(.0001,musNext);g.gain.exponentialRampToValueAtTime(.14*(1-dusk*.4),musNext+.02);g.gain.exponentialRampToValueAtTime(.0001,musNext+beat*1.8);o.connect(g).connect(musG);o.start(musNext);o.stop(musNext+beat*2);}
  musStep++;musNext+=beat;}
 function wind(spd,vy){if(!AC)return;beds();music();const g=muted?0:(.04+Math.min(.05,Math.abs(vy)*.01))*(1-dusk*.35);windG.gain.setTargetAtTime(g,AC.currentTime,.3);windF.frequency.setTargetAtTime(400+Math.abs(vy)*80,AC.currentTime,.3);
@@ -300,7 +305,7 @@ function checkDaily(){if(!dqDone&&dq.ok()){dqDone=true;localStorage.setItem('kk_
 let gi=0,wowSeen=false;const nextG=()=>{gi=0;while(gi<goals.length&&doneG.has(gi))gi++;};nextG();function showGoal(){$('goal').textContent=gi<goals.length?'🎯 '+goals[gi].t:'🎯 Keşfetmeye devam!';}showGoal();
 function checkGoal(){if(gi<goals.length&&goals[gi].ok()){toast('Hedef tamam: '+goals[gi].t+' ✦');for(let i=0;i<3;i++)burst(birdPos,['#fff1a0','#e8766b','#9fdbe6'][i]);chime(1);setTimeout(()=>chime(1.33),130);setTimeout(()=>chime(1.6),260);sparks+=3;doneG.add(gi);goalsRun++;localStorage.setItem('kk_goals',JSON.stringify([...doneG]));nextG();setTimeout(showGoal,1600);}}
 let flyT=0,sumShown=false,goalsRun=0;
-function showSummary(auto){const prevBest=+localStorage.getItem('kk_best')||0;localStorage.setItem('kk_best',Math.floor(best));
+function showSummary(auto){const prevBest=+localStorage.getItem(BK)||0;saveBest();
  $('sumTitle').textContent=auto?'2000 m! Harika uçuş':'Konaklama molası';
  $('sumBody').innerHTML='<div>Mesafe <b>'+Math.floor(dist)+' m</b></div><div>Parıltı <b>✦ '+sparks+'</b></div><div>Kartpostal <b>✉ '+cards+'</b></div><div>Hedef <b>🎯 '+goalsRun+'</b></div><div>En iyi <b>'+Math.floor(best)+' m</b>'+(dist>=prevBest-1&&dist>50?' <span class="stamp">REKOR</span>':'')+'</div>'+
  '<ul class="gl">'+goals.map((g,i)=>'<li>'+(doneG.has(i)?'<b style="color:#6fbf73">✓</b>':'○')+' '+g.t+'</li>').join('')+'</ul>';$('summary').style.display='flex';}
@@ -310,14 +315,21 @@ $('share').onclick=async()=>{const txt='Kağıt Kuş ile '+Math.floor(dist)+' m 
 const ALPH='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';function enc(n,len){let o='';for(let i=0;i<len;i++){o=ALPH[n%32]+o;n=Math.floor(n/32);}return o;}function dec(str){let n=0;for(const c of str){const v=ALPH.indexOf(c);if(v<0)return NaN;n=n*32+v;}return n;}
 function makeCode(){const b=Math.min(32767,Math.floor(best)),c=Math.min(31,unlocked.size),d=((DAYNUM%1024)+1024)%1024;const ck=(b*7+c*13+d*3)%32;return 'KK-'+enc(b,3)+enc(c,1)+enc(d,2)+enc(ck,1);}
 function readCode(code){code=code.trim().toUpperCase().replace(/^KK-?/,'');if(code.length!==7)return null;const b=dec(code.slice(0,3)),c=dec(code.slice(3,4)),d=dec(code.slice(4,6)),ck=dec(code.slice(6));if([b,c,d,ck].some(isNaN)||(b*7+c*13+d*3)%32!==ck)return null;return {b,c,d};}
-$('codeCopy').onclick=async()=>{const c=makeCode();try{await navigator.clipboard.writeText(c);toast('Kod kopyalandı: '+c);}catch(e){prompt('Kodun:',c);}};
-$('codeIn').onclick=e=>{e.stopPropagation();const v=prompt('Arkadaşının kodunu gir (KK-…)');if(!v)return;const r=readCode(v);if(!r){toast('Kod geçersiz');return;}
- const today=((DAYNUM%1024)+1024)%1024===r.d;toast('Sen '+Math.floor(best)+' m · Arkadaş '+r.b+' m'+(today?' (bugün)':'')+' · ✉ '+unlocked.size+' / '+r.c);};
+$('codeCopy').onclick=async()=>{const c=makeCode();try{await navigator.clipboard.writeText(c);toast('Kod kopyalandı: '+c);}catch(e){openCode(c);}};
+function openCode(mine){$('codeMine').textContent='Senin kodun: '+(mine||makeCode());$('codeRes').innerHTML='';$('codeTxt').value='';$('codeM').style.display='flex';}
+$('codeIn').onclick=e=>{e.stopPropagation();openCode();};$('codeClose').onclick=e=>{e.stopPropagation();$('codeM').style.display='none';};
+$('codeM').onclick=e=>e.stopPropagation();
+$('codeGo').onclick=e=>{e.stopPropagation();const raw=$('codeTxt').value;const m=raw.toUpperCase().match(/KK-?[2-9A-HJ-NP-Z]{7}/);const r=m&&readCode(m[0]);
+ if(!r){$('codeRes').innerHTML='<p class="bad">Kod geçersiz. KK- ile başlayan 7 haneli kodu yapıştır.</p>';return;}
+ const today=((DAYNUM%1024)+1024)%1024===r.d;const me=Math.floor(best),win=me>=r.b;
+ $('codeRes').innerHTML='<div class="cmp"><div><small>Sen</small><b>'+me+' m</b><small>✉ '+unlocked.size+'</small></div><div class="vs">'+(win?'🏆':'🕊️')+'</div><div><small>Arkadaş</small><b>'+r.b+' m</b><small>✉ '+r.c+'</small></div></div><p>'+(today?'Aynı günün dünyası!':'Farklı bir günün kodu')+' · '+(win?'Öndesin!':'Hadi yakala!')+'</p>';};
 $('sumCont').onclick=()=>$('summary').style.display='none';
-function syncSet(){$('sVol').value=SET.vol;$('sSens').value=SET.sens;$('sGhost').checked=SET.ghost;$('sFast').checked=SET.fastDay;$('sInv').checked=SET.invY;}
+function syncSet(){$('sVol').value=SET.vol;$('sSens').value=SET.sens;$('sGhost').checked=SET.ghost;$('sFast').checked=SET.fastDay;$('sInv').checked=SET.invY;$('sHap').checked=SET.hap!==false;}
 $('setBtn').onclick=e=>{e.stopPropagation();syncSet();$('settings').style.display='flex';};$('setClose').onclick=()=>$('settings').style.display='none';
 $('sVol').oninput=e=>{SET.vol=+e.target.value;if(MASTER)MASTER.gain.value=SET.vol;saveSet();};$('sSens').oninput=e=>{SET.sens=+e.target.value;saveSet();};
 $('sGhost').onchange=e=>{SET.ghost=e.target.checked;saveSet();};$('sFast').onchange=e=>{SET.fastDay=e.target.checked;saveSet();};$('sInv').onchange=e=>{SET.invY=e.target.checked;saveSet();};
+$('reveal').onclick=e=>{e.stopPropagation();$('reveal').style.display='none';};
+$('sHap').onchange=e=>{SET.hap=e.target.checked;saveSet();if(SET.hap)buzz(20);};
 $('menuBtn').onclick=e=>{e.stopPropagation();const m=$('menu');m.classList.toggle('open');$('menuBtn').textContent=m.classList.contains('open')?'✕':'☰';};
 $('boostBtn').onclick=e=>{e.stopPropagation();initAudio();boost();};
 // costumes
@@ -345,11 +357,11 @@ const ghost=new THREE.Group();{const gm=new THREE.MeshBasicMaterial({color:'#fff
  const rib=new THREE.Mesh(new THREE.TorusGeometry(5,.25,6,24,Math.PI),new THREE.MeshBasicMaterial({color:'#f6a96b',transparent:true,opacity:.55}));rib.position.y=-3;ghost.add(rib);ghost.userData.rib=rib;}
 scene.add(ghost);let runZ0=0,ghostPassed=false,newBestRun=false;function placeGhost(){const z=runZ0-best;ghost.visible=best>50;ghost.position.set(riverX(z),Math.max(height(riverX(z),z),0)+9,z);ghostPassed=false;}
 const gbird=new THREE.Group();{const gm=new THREE.MeshBasicMaterial({color:'#dfe9ff',transparent:true,opacity:.5,depthWrite:false});const b1=new THREE.Mesh(bodyG,gm);b1.scale.set(.85,.8,1.35);const h1=new THREE.Mesh(new THREE.IcosahedronGeometry(.42,1),gm);h1.position.set(0,.35,-.7);const w1=new THREE.Mesh(wingG,gm),w2=new THREE.Mesh(wingG,gm);w1.position.x=.35;w2.position.x=-.35;w2.scale.x=-1;gbird.add(b1,h1,w1,w2);gbird.userData.w=[w1,w2];gbird.visible=false;scene.add(gbird);}
-let gPath=JSON.parse(localStorage.getItem('kk_path')||'null'),recPath=[],recT=0,runT=0;
+let gPath=JSON.parse(localStorage.getItem(PK)||'null'),recPath=[],recT=0,runT=0;
 function recTick(dt){if(!running)return;runT+=dt;recT-=dt;if(recT<=0&&recPath.length<2400){recT=.25;recPath.push([+(birdPos.x).toFixed(2),+(birdPos.y).toFixed(2),+(birdPos.z-runZ0).toFixed(2),+bank.toFixed(2)]);}
  if(gPath&&gPath.length>1){const fi=runT/.25,i=Math.floor(fi);if(i<gPath.length-1){const a=gPath[i],b=gPath[i+1],f=fi-i;gbird.visible=SET.ghost;gbird.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,runZ0+a[2]+(b[2]-a[2])*f);gbird.position.y=Math.max(gbird.position.y,Math.max(height(gbird.position.x,gbird.position.z),-1.3)+2);gbird.rotation.set(0,0,a[3]+(b[3]-a[3])*f);
   const fl=Math.sin(t*9)*.6;gbird.userData.w[0].rotation.z=fl;gbird.userData.w[1].rotation.z=-fl;const gd=gbird.position.distanceTo(birdPos);gbird.children[0].material.opacity=THREE.MathUtils.clamp(.55-(gd-20)/150,.08,.55);}else gbird.visible=false;}}
-function savePath(){if(recPath.length>8)localStorage.setItem('kk_path',JSON.stringify(recPath));}
+function savePath(){if(recPath.length>8)localStorage.setItem(PK,JSON.stringify(recPath));}
 function ghostTick(){ghost.visible=SET.ghost&&best>50;if(!ghost.visible)return;{const gd=ghost.position.distanceTo(birdPos);const k=THREE.MathUtils.clamp(1-(gd-30)/140,0,1);ghost.userData.rib.material.opacity=.12+k*.5;ghost.scale.setScalar(.6+k*.4);}const f=Math.sin(t*8)*.6;ghost.userData.w[0].rotation.z=f;ghost.userData.w[1].rotation.z=-f;ghost.position.y+=Math.sin(t*2)*.01;
  if(!ghostPassed&&running&&birdPos.z<ghost.position.z){ghostPassed=true;toast('Rekor izini geçtin! 🏆');chime(1);setTimeout(()=>chime(1.5),150);for(let i=0;i<3;i++)burst(ghost.position,'#f6a96b');}}
 applyGfx(SET.gfx||(localStorage.getItem('kk_q')==='low'?'low':'high'));
@@ -396,7 +408,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
  for(const d of dynamic){const o=d.o;const dx=o.position.x-birdPos.x,dz=o.position.z-birdPos.z;const dd=dx*dx+dz*dz;
   if(d.type==='tree'){const near=dd<36&&birdPos.y-o.position.y<10;if(near&&d.sway<.5){d.sway=1.4;if(d.hasBirds){flush(o.position);d.hasBirds=false;}}
    d.sway*=1-dt*1.2;if(dd<2500){o.rotation.z=Math.sin(t*1.5+d.ph)*.03+Math.sin(t*9)*d.sway*.12;o.updateMatrix();const q=d.rec;q.tr.setMatrixAt(q.ti,o.matrix);q.top.setMatrixAt(q.pi,o.matrix);q.tr.instanceMatrix.needsUpdate=true;q.top.instanceMatrix.needsUpdate=true;}}
-  else if(d.type==='animal'){const near=dd<100&&birdPos.y-o.position.y<12;
+  else if(d.type==='animal'){if(dd>4900&&d.scared<=0){continue;}const near=dd<100&&birdPos.y-o.position.y<12;
    if(near&&d.scared<=0){d.scared=2.5;const l=Math.sqrt(dd)||1;d.vel.set(-dx/l,0,-dz/l).multiplyScalar(5);o.rotation.y=Math.atan2(-dx,-dz);}
    if(d.scared>0){d.scared-=dt;o.position.addScaledVector(d.vel,dt);d.vel.multiplyScalar(1-dt*.8);d.hop+=dt*14;
     o.position.y=height(o.position.x,o.position.z)+Math.abs(Math.sin(d.hop))*.6;d.head.position.y=.95;}
@@ -406,7 +418,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
   else if(d.type==='spark'||d.type==='card'){
    if(!d.taken){const gs=o.children[o.children.length-1];const fd=Math.sqrt(dd);gs.material.opacity=THREE.MathUtils.clamp(1-(fd-scene.fog.near*.5)/(scene.fog.far*.55-scene.fog.near*.5),0,1)*.95;o.rotation.y+=dt*(d.type==='card'?1:3);o.scale.setScalar(1+Math.sin(t*5+o.position.z)*.15);o.position.y+=Math.sin(t*3+o.position.z)*.01;
     if(o.position.distanceTo(birdPos)<(d.type==='card'?2.6:2)){d.taken=true;
-     if(d.type==='spark'){sparks++;burst(o.position,'#fff1a0');chime(1+sparks%6*.12);}else{cards++;burst(o.position,'#e8766b');burst(o.position,'#fff1a0');chime(.8);setTimeout(()=>chime(1.2),120);setTimeout(()=>chime(1.5),240);cardFlash();const bNow=biome(birdPos.z);let lockd=cardMsgs.map((_,i)=>i).filter(i=>!unlocked.has(i));const themed=lockd.filter(i=>cardMsgs[i][2]===bNow);const plain=lockd.filter(i=>cardMsgs[i][2]===undefined);lockd=themed.length?themed:plain.length?plain:lockd;const ci=lockd.length?lockd[Math.floor(Math.random()*lockd.length)]:Math.floor(Math.random()*cardMsgs.length);const isNew=!unlocked.has(ci);toast((isNew?'Yeni kartpostal: ':'✉ ')+cardMsgs[ci][0]);if(isNew){newCards.add(ci);SKINS.forEach(k=>{if(k.need&&unlocked.size+1===k.need)setTimeout(()=>toast('Yeni kostüm: '+k.n+'!'),1800);});}runCards.push(ci);unlocked.add(ci);localStorage.setItem('kk_cards',JSON.stringify([...unlocked]));}}}
+     if(d.type==='spark'){sparks++;burst(o.position,'#fff1a0');buzz(8);chime(1+sparks%6*.12);}else{cards++;burst(o.position,'#e8766b');burst(o.position,'#fff1a0');chime(.8);setTimeout(()=>chime(1.2),120);setTimeout(()=>chime(1.5),240);cardFlash();const bNow=biome(birdPos.z);let lockd=cardMsgs.map((_,i)=>i).filter(i=>!unlocked.has(i));const themed=lockd.filter(i=>cardMsgs[i][2]===bNow);const plain=lockd.filter(i=>cardMsgs[i][2]===undefined);lockd=themed.length?themed:plain.length?plain:lockd;const ci=lockd.length?lockd[Math.floor(Math.random()*lockd.length)]:Math.floor(Math.random()*cardMsgs.length);const isNew=!unlocked.has(ci);if(isNew)reveal(ci);else toast('✉ '+cardMsgs[ci][0]);buzz([20,40,20]);if(isNew){newCards.add(ci);SKINS.forEach(k=>{if(k.need&&unlocked.size+1===k.need)setTimeout(()=>toast('Yeni kostüm: '+k.n+'!'),1800);});}runCards.push(ci);unlocked.add(ci);localStorage.setItem('kk_cards',JSON.stringify([...unlocked]));}}}
    else{d.t+=dt;o.scale.setScalar(Math.max(0,1-d.t*3));o.position.y+=dt*6;}
    if(d.im&&(dd<10000)&&(!d.taken||d.t<.5)){o.updateMatrix();d.im.setMatrixAt(d.ii,o.matrix);d.im.instanceMatrix.needsUpdate=true;}}
   else if(d.type==='boat'){if(dd<64&&d.rock<.3)d.rock=1;d.rock*=1-dt*.7;o.rotation.z=Math.sin(t*1.3+d.ph)*.05+Math.sin(t*5)*d.rock*.25;o.position.y=-1.5+Math.sin(t*1.1+d.ph)*.08;}
@@ -425,7 +437,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
  const bq=biome(birdPos.z);ptT-=dt;if(running&&(bq===1||bq===2)&&ptT<=0){ptT=.08;const p=pts[ptI++%pts.length];p.material=bq===2?snowM:leafM[ptI%3];p.position.set(birdPos.x+(Math.random()-.5)*24,birdPos.y+6+Math.random()*6,birdPos.z-6-Math.random()*20);p.userData.t=0;p.userData.s=bq;p.visible=true;}
  for(const p of pts)if(p.visible){p.userData.t+=dt;p.position.y-=dt*(p.userData.s===2?2:1.4);p.position.x+=Math.sin(t*2+p.id)*dt*1.5;p.rotation.x+=dt*3;p.rotation.y+=dt*2;if(p.userData.t>5)p.visible=false;}
  if(running&&qMode==='auto'){fpsAcc+=dt;fpsN++;if(fpsAcc>1){const f=fpsN/fpsAcc;fpsAcc=0;fpsN=0;lowSec=f<35?lowSec+1:0;if(lowSec>=4&&SET.gfx!=='low'){const nk=SET.gfx==='mid'?'low':'mid';applyGfx(nk);lowSec=0;toast('Grafik otomatik: '+(nk==='low'?'Düşük':'Orta'));}}}
- recTick(dt);if(running&&dist>best){best=dist;newBestRun=true;if(Math.floor(dist)%20==0){localStorage.setItem('kk_best',Math.floor(best));savePath();}}
+ recTick(dt);if(running&&dist>best){best=dist;newBestRun=true;if(Math.floor(dist)%20==0){saveBest();savePath();}}
  wind(spd,vy);
  if(running){for(const ch of chunks)if(ch.wow&&Math.abs(ch.z0-30-birdPos.z)<40)wowSeen=true;checkGoal();dailyAcc(dt);checkDaily();}
  flyT+=running?dt:0;dayCycle(SET.fastDay?flyT*6+30:flyT+30);nightFx();ghostTick();
