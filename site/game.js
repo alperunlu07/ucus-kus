@@ -235,7 +235,7 @@ const cardMsgs=[
 ['Orman Fısıltısı','Çamların arasında mantarlar bize göz kırptı.',5],['Ateş Böcekleri','Ormanda akşam: minik fenerler etrafımızda dans ediyor.',5],
 ['Kum Tepeleri','Çölde kaktüsler sıcaktan şapka istiyor.',4],['Serap','Ufukta bir göl gördük… yoksa serap mıydı?',4],
 ['Kar Tanesi','Her kar tanesi farklıymış; biri gagama kondu.',2],['Deniz Kabuğu','Sahilde dalgalar bize bir kabuk bıraktı.',3],['Arı Vızıltısı','Bahar sabahı: arılar çiçekten çiçeğe koşturuyor.',0],['Yaprak Dansı','Rüzgâr esti, sonbahar yaprakları bizimle uçtu.',1]];
-$('go').onclick=()=>{initAudio();runZ0=birdPos.z;placeGhost();runT=0;recPath=[];if(!localStorage.getItem('kk_tut'))showTut();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
+$('go').onclick=()=>{$('hint').style.display='';initAudio();runZ0=birdPos.z;placeGhost();runT=0;recPath=[];if(!localStorage.getItem('kk_tut'))showTut();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
 // ---------- loop ----------
 const trailMat=new THREE.SpriteMaterial({map:glowTex,color:'#ffffff',transparent:true,opacity:.35,depthWrite:false});
 const pts=[];const snowM=new THREE.MeshBasicMaterial({color:'#ffffff'}),leafM=['#f0a35e','#e5c45a','#d9785a'].map(c=>new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));const ptG=new THREE.PlaneGeometry(.22,.22);
@@ -258,7 +258,8 @@ function initAudio(){if(AC)return;AC=new (window.AudioContext||window.webkitAudi
 let bedS=null,bedF=null,bedG=null,padG=null,padO=[];
 function initBeds(){const s2=AC.createBufferSource();s2.buffer=window.__noise;s2.loop=true;bedF=AC.createBiquadFilter();bedG=AC.createGain();bedG.gain.value=0;s2.connect(bedF).connect(bedG).connect(MASTER);s2.start(0,.7);
  padG=AC.createGain();padG.gain.value=0;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=700;padG.connect(lp).connect(MASTER);for(const f of[196,246.9,293.7]){const o=AC.createOscillator();o.type='triangle';o.frequency.value=f;o.detune.value=(Math.random()-.5)*10;o.connect(padG);o.start();padO.push(o);}}
-function beds(){if(!bedG)initBeds();const n=AC.currentTime,b=biome(birdPos.z);let gv=0,ft='bandpass',fq=800,q=.8;
+let rainSG=null;function beds(){if(!bedG)initBeds();if(!rainSG){const s3=AC.createBufferSource();s3.buffer=window.__noise;s3.loop=true;const hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=1800;const lp2=AC.createBiquadFilter();lp2.type='lowpass';lp2.frequency.value=6000;rainSG=AC.createGain();rainSG.gain.value=0;s3.connect(hp).connect(lp2).connect(rainSG).connect(MASTER);s3.start(0,1.3);}
+ rainSG.gain.setTargetAtTime(muted?0:wRain*.07,AC.currentTime,.8);const n=AC.currentTime,b=biome(birdPos.z);let gv=0,ft='bandpass',fq=800,q=.8;
  if(b===5){gv=.035*(.6+.4*Math.sin(t*1.7)*Math.sin(t*.6));ft='highpass';fq=3200;}else if(b===3){gv=.06*(.5+.5*Math.sin(t*.9));ft='lowpass';fq=380;}else if(b===4){gv=.03;ft='bandpass';fq=1500;q=2;}
  bedF.type=ft;bedF.frequency.setTargetAtTime(fq,n,.5);bedF.Q.value=q;bedG.gain.setTargetAtTime(muted?0:gv*(1-dusk*.4),n,.6);padG.gain.setTargetAtTime(muted?0:dusk*.012,n,1.5);}
 let musLP=null,musFl={r:0,w:'triangle'},musG=null,musNext=0,musStep=0;const PENT=[0,2,4,7,9,12,14,16];
@@ -297,9 +298,9 @@ function openAlbum(){renderTabs();const l=$('albumList');l.innerHTML='';cardMsgs
 $('albumBtn').onclick=$('albumBtn2').onclick=e=>{e.stopPropagation();openAlbum();};$('albumClose').onclick=()=>$('album').style.display='none';
 const goals=[{t:'5 parıltı topla',ok:()=>sparks>=5},{t:'500 m uç',ok:()=>dist>=500},{t:'1 kartpostal bul',ok:()=>cards>=1},{t:'Karlı tepelere ulaş',ok:()=>biome(birdPos.z)===2},
  {t:'Çift dokun: hızlan',ok:()=>boostT>0},{t:'20 parıltı topla',ok:()=>sparks>=20},{t:'Sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'3 kartpostal bul',ok:()=>cards>=3},{t:'Balon festivalini bul',ok:()=>wowSeen},{t:'2000 m uç',ok:()=>dist>=2000}];
-const doneG=new Set(JSON.parse(localStorage.getItem('kk_goals')||'[]'));const DQ=[{t:'Bugün 20 parıltı topla',ok:()=>DS.s>=20,p:()=>Math.min(20,DS.s)+'/20'},{t:'Bugün sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'Bugün 2 kartpostal bul',ok:()=>DS.c>=2,p:()=>Math.min(2,DS.c)+'/2'},{t:'Bugün 1500 m uç',ok:()=>DS.m>=1500,p:()=>Math.floor(Math.min(1500,DS.m))+'/1500 m'},{t:'Bugün ormana ulaş',ok:()=>biome(birdPos.z)===5},{t:'Bugün çöle ulaş',ok:()=>biome(birdPos.z)===4}];
-const DS=(()=>{const o=JSON.parse(localStorage.getItem('kk_dq')||'{}');return o.d===TODAY?o:{d:TODAY,s:0,m:0,c:0};})();let lS=0,lM=0,lC=0,dsT=0;
-function dailyAcc(dt){if(sparks>lS)DS.s+=sparks-lS;if(dist>lM)DS.m+=dist-lM;if(cards>lC)DS.c+=cards-lC;lS=sparks;lM=dist;lC=cards;dsT-=dt;if(dsT<=0){dsT=2;localStorage.setItem('kk_dq',JSON.stringify(DS));}}
+const doneG=new Set(JSON.parse(localStorage.getItem('kk_goals')||'[]'));const DQ=[{t:'Bugün 20 parıltı topla',ok:()=>DS.s>=20,p:()=>Math.min(20,DS.s)+'/20'},{t:'Bugün sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'Bugün 2 kartpostal bul',ok:()=>DS.c>=2,p:()=>Math.min(2,DS.c)+'/2'},{t:'Bugün 1500 m uç',ok:()=>DS.m>=1500,p:()=>Math.floor(Math.min(1500,DS.m))+'/1500 m'},{t:'Bugün ormana ulaş',ok:()=>biome(birdPos.z)===5},{t:'Bugün çöle ulaş',ok:()=>biome(birdPos.z)===4},{t:'Bugün 10 yıldız tozu topla',ok:()=>(DS.x||0)>=10,p:()=>Math.min(10,DS.x||0)+'/10 ✧'}];
+const DS=(()=>{const o=JSON.parse(localStorage.getItem('kk_dq')||'{}');return o.d===TODAY?o:{d:TODAY,s:0,m:0,c:0};})();let lD=0,lS=0,lM=0,lC=0,dsT=0;
+function dailyAcc(dt){if(sparks>lS)DS.s+=sparks-lS;if(dist>lM)DS.m+=dist-lM;if(cards>lC)DS.c+=cards-lC;if(dustN>lD)DS.x=(DS.x||0)+dustN-lD;lD=dustN;lS=sparks;lM=dist;lC=cards;dsT-=dt;if(dsT<=0){dsT=2;localStorage.setItem('kk_dq',JSON.stringify(DS));}}
 const dq=DQ[((DAYNUM%DQ.length)+DQ.length)%DQ.length];let dqDone=localStorage.getItem('kk_daily')===TODAY;
 document.getElementById('daily').innerHTML='Bugünün dünyası · '+TODAY.split('-').reverse().join('.')+'<br>🌞 '+dq.t+(dqDone?' ✓':(dq.p?' ('+dq.p()+')':''));
 function checkDaily(){if(!dqDone&&dq.ok()){dqDone=true;localStorage.setItem('kk_daily',TODAY);setTimeout(()=>{toast('Günlük görev tamam! 🌞 +10 ✦');sparks+=10;chime(1);setTimeout(()=>chime(1.5),150);setTimeout(()=>chime(2),300);for(let i=0;i<4;i++)burst(birdPos,'#ffd27a');},2000);}}
@@ -342,7 +343,8 @@ let skin=+localStorage.getItem('kk_skin')||0;const scarf=new THREE.Mesh(new THRE
 const hat=new THREE.Group();{const brim=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.05,8),lam('#3d4f7a'));const top2=new THREE.Mesh(new THREE.ConeGeometry(.2,.42,6),brim.material);top2.position.y=.22;const crest=new THREE.Mesh(new THREE.OctahedronGeometry(.08),lam('#ffe27a'));crest.position.y=.46;hat.add(brim,top2,crest);hat.position.set(0,.76,-.72);hat.rotation.x=-.2;}
 bird.add(scarf,tailS,hat);
 function applySkin(i){if(isLk(i))return;scarf.visible=tailS.visible=i===1;hat.visible=i===2;skin=i;localStorage.setItem('kk_skin',i);bMat.color.set(SKINS[i].b);wMat.color.set(SKINS[i].w);renderSkins();}
-function renderSkins(){const el=$('skins');el.innerHTML='';SKINS.forEach((s2,i)=>{const b=document.createElement('button');const lk=isLk(i);b.className='sk'+(i===skin?' on':'')+(lk?' lk':'');
+$('wardBtn').onclick=e=>{e.stopPropagation();renderSkins();$('ward').style.display='flex';};$('wardClose').onclick=e=>{e.stopPropagation();$('ward').style.display='none';};
+function renderSkins(){$('wardName').textContent=SKINS[skin].n;$('wardDot').style.background=SKINS[skin].b;$('wardDot').style.borderColor=SKINS[skin].w;const el=$('skins');el.innerHTML='';SKINS.forEach((s2,i)=>{const b=document.createElement('button');const lk=isLk(i);b.className='sk'+(i===skin?' on':'')+(lk?' lk':'');
  b.innerHTML='<i style="background:'+s2.b+';border-color:'+s2.w+'"></i>'+(lk?'🔒 '+(s2.tab!==undefined?TABN[s2.tab]+' albümü':s2.need+' ✉'):s2.n);b.onclick=e=>{e.stopPropagation();applySkin(i);};el.appendChild(b);});}
 if(!SKINS[skin]||isLk(skin))skin=0;applySkin(skin);
 const ffMat=new THREE.SpriteMaterial({map:glowTex,color:'#e9ff9a',blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,opacity:0});
@@ -387,7 +389,7 @@ for(let i=0;i<24;i++){const s2=new THREE.Sprite(dustMat);s2.scale.setScalar(1.3)
 function dustTick(dt){dustT-=dt;if(dusk>.4&&running&&dustT<=0){dustT=.7;const s2=dusts.find(d=>!d.visible);if(s2){s2.visible=true;s2.position.set(birdPos.x+(Math.random()-.5)*26,birdPos.y+(Math.random()-.5)*6,birdPos.z-40-Math.random()*30);}}
  dustMat.opacity=Math.min(1,dusk*1.4)*(.6+Math.sin(t*4)*.3);for(const d of dusts){if(!d.visible)continue;d.position.y+=Math.sin(t*2+d.position.x)*.01;if(d.position.z>birdPos.z+15||dusk<.2){d.visible=false;continue;}
   if(d.position.distanceTo(birdPos)<2.6){d.visible=false;dustN++;chime(1.8);buzz(6);burst(d.position,'#bcd4ff');const el=$('dust');el.style.display='';el.textContent='✧ '+dustN;}}}
-if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+if('serviceWorker' in navigator)addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').then(reg=>{const watch=w=>w&&w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller){$('upd').style.display='flex';$('updGo').onclick=()=>w.postMessage('skip');}});if(reg.waiting&&navigator.serviceWorker.controller){$('upd').style.display='flex';$('updGo').onclick=()=>reg.waiting.postMessage('skip');}reg.addEventListener('updatefound',()=>watch(reg.installing));}).catch(()=>{});let rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(rl)return;rl=true;location.reload();});});
 let deferredI=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredI=e;$('install').style.display='';});
 $('install').onclick=async e=>{e.stopPropagation();if(deferredI){deferredI.prompt();deferredI=null;$('install').style.display='none';}};
 {const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),sa=navigator.standalone||matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: standalone)').matches;
