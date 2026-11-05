@@ -79,13 +79,15 @@ export function buildPlane(opt={}){
  // wing root fairings
  for(const s of[-1,1]){const f=new THREE.Mesh(new THREE.SphereGeometry(.2,10,6),pm);f.scale.set(.6,.35,2.4);f.position.set(s*.26,Y-.18,-.1);root.add(f);}
  // ---- cockpit interior (paper-craft): tub, seat, stick, dash with gauges, rudder pedals
+ let stick,pilot;const cockpit=new THREE.Group();root.add(cockpit);const _root=root;{const root=cockpit;
  const tub=new THREE.Mesh(new THREE.BoxGeometry(.38,.03,.95),lam('#5a5260'));tub.position.set(0,Y+.35,-.4);root.add(tub);
  const seat=new THREE.Group();seat.position.set(0,Y+.34,-.2);seat.scale.set(.75,.6,.7);root.add(seat);{const sc=lam('#8a5a44');const b1=new THREE.Mesh(new THREE.BoxGeometry(.26,.05,.24),sc);const b2=new THREE.Mesh(new THREE.BoxGeometry(.26,.3,.05),sc);b2.position.set(0,.15,.12);b2.rotation.x=-.2;const hr=new THREE.Mesh(new THREE.BoxGeometry(.16,.08,.04),sc);hr.position.set(0,.33,.15);seat.add(b1,b2,hr);for(const s of[-1,1]){const belt=new THREE.Mesh(new THREE.BoxGeometry(.025,.006,.26),py);belt.position.set(s*.06,.03,0);belt.rotation.x=.0;seat.add(belt);}}
- const stick=new THREE.Group();stick.position.set(0,Y+.38,-.45);stick.scale.setScalar(.7);root.add(stick);{const sh=new THREE.Mesh(new THREE.CylinderGeometry(.012,.016,.2,6),pd);sh.position.y=.1;const gr=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),pa);gr.position.y=.2;stick.add(sh,gr);}
+ stick=new THREE.Group();stick.position.set(0,Y+.38,-.45);stick.scale.setScalar(.7);root.add(stick);{const sh=new THREE.Mesh(new THREE.CylinderGeometry(.012,.016,.2,6),pd);sh.position.y=.1;const gr=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),pa);gr.position.y=.2;stick.add(sh,gr);}
  for(const s of[-1,1]){const pd2=new THREE.Mesh(new THREE.BoxGeometry(.06,.04,.03),lam('#9a9aa4'));pd2.position.set(s*.08,Y+.25,-.78);root.add(pd2);}
  {const dash=new THREE.Mesh(new THREE.BoxGeometry(.42,.14,.04),new THREE.MeshLambertMaterial({map:dashTex()}));dash.position.set(0,Y+.42,-.74);dash.scale.set(.85,.8,1);dash.rotation.x=-.9;root.add(dash);const hood=new THREE.Mesh(new THREE.BoxGeometry(.44,.02,.1),pd);hood.position.set(0,Y+.45,-.8);hood.scale.x=.85;root.add(hood);}
  // pilot (shown in flight)
- const pilot=new THREE.Group();root.add(pilot);{const body=new THREE.Mesh(new THREE.BoxGeometry(.18,.16,.12),lam('#7d8fa6'));body.position.set(0,Y+.33,-.12);const head=new THREE.Mesh(new THREE.SphereGeometry(.08,10,8),lam('#e2b48f'));head.position.set(0,Y+.46,-.14);const cp=new THREE.Mesh(new THREE.SphereGeometry(.085,10,6,0,Math.PI*2,0,Math.PI/2),pa);cp.position.set(0,Y+.47,-.14);pilot.add(body,head,cp);}
+ pilot=new THREE.Group();_root.add(pilot);{const body=new THREE.Mesh(new THREE.BoxGeometry(.18,.16,.12),lam('#7d8fa6'));body.position.set(0,Y+.33,-.12);const head=new THREE.Mesh(new THREE.SphereGeometry(.08,10,8),lam('#e2b48f'));head.position.set(0,Y+.46,-.14);const cp=new THREE.Mesh(new THREE.SphereGeometry(.085,10,6,0,Math.PI*2,0,Math.PI/2),pa);cp.position.set(0,Y+.47,-.14);pilot.add(body,head,cp);}
+ }
  // ---- canopy (matte) on rear hinge: opens nose-up
  const canopy=new THREE.Group();canopy.position.set(0,Y+.22,.25);root.add(canopy);
  const can=new THREE.Mesh(new THREE.SphereGeometry(.26,18,10,0,Math.PI*2,0,Math.PI/2),pg);can.scale.set(.95,.95,2.3);can.position.set(0,0,-.6);canopy.add(crease(can,40));
@@ -113,17 +115,17 @@ export function buildPlane(opt={}){
  const tw=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.03,10),pt);tw.rotation.z=Math.PI/2;tw.position.set(0,-.38,.3);tail.add(tw);
  const twl=new THREE.Mesh(new THREE.BoxGeometry(.02,.2,.03),pd);twl.position.set(0,-.27,.25);twl.rotation.x=-.4;tail.add(twl);
  let ang=0,bank=0,pitch=0,yaw=0,rpm=.2,flapA=0,canA=opt.canopy?1:0,lt=0;
- P.userData={prop,blades,blur,ail,elev,rud,root,tips,canopy,pilot,flaps,canopyOpen:!!opt.canopy,
+ P.userData={cockpit,prop,blades,blur,ail,elev,rud,root,tips,canopy,pilot,flaps,canopyOpen:!!opt.canopy,
   tick(dt,o={}){const steer=o.steer||0,climb=o.climb||0,thr=o.throttle??o.spin??1;lt+=dt;
    // RPM: idle .12 .. full 1, a little more in climb, less in dive
    const tr=THREE.MathUtils.clamp(.12+thr*.88+climb*.08,.08,1.05);rpm+=(tr-rpm)*(1-Math.exp(-dt*2.2));ang+=dt*rpm*62;blades.rotation.z=ang;
    const f=THREE.MathUtils.smoothstep(rpm,.45,.85);blurM.opacity=.4*f;blurTip.material.opacity=.5*f;blades.children.forEach(b=>{b.material.transparent=true;b.material.opacity=1-.8*f;});
    const k=1-Math.exp(-dt*5);bank+=(-steer*.5-bank)*k;pitch+=(climb*.22-pitch)*k;yaw+=(steer-yaw)*k;root.rotation.z=bank;root.rotation.x=pitch;
    // right turn: right aileron up, left down; rudder trailing edge right; climb: elevator up
-   ail[1].rotation.x=-yaw*.45;ail[-1].rotation.x=yaw*.45;elev.rotation.x=-climb*.5;rud.rotation.y=yaw*.45;stick.rotation.z=-yaw*.3;stick.rotation.x=climb*.3;
+   ail[1].rotation.x=-yaw*.6;ail[-1].rotation.x=yaw*.6;elev.rotation.x=-climb*.6;rud.rotation.y=yaw*.55;stick.rotation.z=-yaw*.3;stick.rotation.x=climb*.3;
    // flaps: drop at low power / descent / parked
-   const ft=o.flaps??THREE.MathUtils.clamp((1-thr)*.9+Math.max(0,-climb)*.4,0,1);flapA+=(ft-flapA)*(1-Math.exp(-dt*2));flaps.forEach(fl=>fl.rotation.x=flapA*.55);
-   canA+=((P.userData.canopyOpen?1:0)-canA)*(1-Math.exp(-dt*4));canopy.rotation.x=canA*1.05;
+   const ft=o.flaps??THREE.MathUtils.clamp(Math.max(0,.55-thr)*1.6+Math.max(0,-climb)*.7,0,1);flapA+=(ft-flapA)*(1-Math.exp(-dt*2));flaps.forEach(fl=>fl.rotation.x=flapA*.55);
+   canA+=((P.userData.canopyOpen?1:0)-canA)*(1-Math.exp(-dt*4));canopy.rotation.x=canA*1.05;cockpit.visible=canA>.04;pilot.visible=cockpit.visible&&P.userData.pilotOn!==false;
    // lights: steady nav glow with soft pulse, double-flash strobes, beacon
    const pu=.8+.2*Math.sin(lt*3);lights.forEach(l=>{l.material.opacity=pu;});const sp=lt%1.4;strobes.forEach(s=>s.material.opacity=(sp<.06||(sp>.16&&sp<.22))?1:0);bcn.material.opacity=Math.max(0,Math.sin(lt*5))**3;
   }};

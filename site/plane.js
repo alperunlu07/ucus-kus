@@ -26,25 +26,25 @@ const TN=60;const trails=U.tips.map(()=>{const g=new THREE.BufferGeometry();g.se
  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,uniforms:{op:{value:0}},vertexShader:'attribute float a;varying float va;void main(){va=a;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform float op;varying float va;void main(){gl_FragColor=vec4(1.,1.,1.,va*op);}'});
  const me=new THREE.Mesh(g,m);me.frustumCulled=false;S.add(me);return {g,m,pts:[]};});
 const _v=new THREE.Vector3();function trailTick(spd){const sk=THREE.MathUtils.smoothstep(spd,3,10);const n=Math.round(10+sk*(TN-10));
- U.tips.forEach((tp,k)=>{const T=trails[k];tp.getWorldPosition(_v);T.pts.unshift(_v.clone());if(T.pts.length>TN)T.pts.pop();T.m.uniforms.op.value=.55*sk;
-  const P=T.g.attributes.position,A=T.g.attributes.a;for(let i=0;i<TN;i++){const q=T.pts[Math.min(i,T.pts.length-1)];const w=.03*(1-i/TN)+.006;P.setXYZ(i*2,q.x-w,q.y,q.z);P.setXYZ(i*2+1,q.x+w,q.y,q.z);const al=i<n?(1-i/n):0;A.setX(i*2,al);A.setX(i*2+1,al);}P.needsUpdate=A.needsUpdate=true;});}
-document.querySelectorAll('#views button').forEach(b=>b.onclick=()=>{st.view=+b.dataset.v;});
+ U.tips.forEach((tp,k)=>{const T=trails[k];tp.getWorldPosition(_v);T.pts.unshift(_v.clone());if(T.pts.length>TN)T.pts.pop();T.m.uniforms.op.value=.75*sk;
+  const P=T.g.attributes.position,A=T.g.attributes.a;for(let i=0;i<TN;i++){const q=T.pts[Math.min(i,T.pts.length-1)];const w=(.03*(1-i/TN)+.006)*Math.max(1,vh/9);P.setXYZ(i*2,q.x-w,q.y,q.z);P.setXYZ(i*2+1,q.x+w,q.y,q.z);const al=i<n?(1-i/n):0;A.setX(i*2,al);A.setX(i*2+1,al);}P.needsUpdate=A.needsUpdate=true;});}
+document.querySelectorAll('#views button[data-v]').forEach(b=>b.onclick=()=>{st.view=+b.dataset.v;});
 let vh=10;function fit(){const w=vh*innerWidth/innerHeight;cam.left=-w/2;cam.right=w/2;cam.top=vh/2;cam.bottom=-vh/2;cam.updateProjectionMatrix();}
 addEventListener('resize',()=>{R.setSize(innerWidth,innerHeight);fit();});
 const clk=new THREE.Clock();let t=0;const altEl=document.getElementById('alt');
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.05);t+=dt;
  let steer=st.steer,climb=st.climb;if(keys.ArrowLeft||keys.a)steer=-1;if(keys.ArrowRight||keys.d)steer=1;if(keys.ArrowUp||keys.w)climb=1;if(keys.ArrowDown||keys.s)climb=-1;
- if(st.park){steer=0;climb=0;}else if(st.auto&&!drag){steer=Math.sin(t*.35)*.6;climb=Math.sin(t*.22)*.5;}
+ if(st.park){steer=0;climb=0;}else if(st.auto&&!drag){steer=Math.sin(t*.35)*.7;climb=THREE.MathUtils.clamp((3.5+Math.sin(t*.25)*1.5-st.y)*.5,-1,1);}
  if(st.force){steer=st.force.steer;climb=st.force.climb;}
  st.speed+=((st.park?0:3+st.thr*9)-st.speed)*(1-Math.exp(-dt*1.5));
  st.head-=steer*dt*.9*Math.min(1,st.speed/4);st.vy+=(climb*3-st.vy)*(1-Math.exp(-dt*3));st.y=st.park?THREE.MathUtils.lerp(st.y,.22,1-Math.exp(-dt*2)):THREE.MathUtils.clamp(st.y+st.vy*dt,1.2,30);if(st.y<=1.2||st.y>=30)st.vy*=.5;
  st.x+=-Math.sin(st.head)*st.speed*dt;st.z+=-Math.cos(st.head)*st.speed*dt;
- holder.position.set(st.x,st.y,st.z);holder.rotation.y=st.head;plane.userData.tick(dt,{steer,climb:THREE.MathUtils.clamp(st.vy/3,-1,1),throttle:st.park?0:st.thr});trailTick(st.speed);
+ holder.position.set(st.x,st.y,st.z);holder.rotation.y=st.head;plane.userData.tick(dt,{steer,climb:THREE.MathUtils.clamp(st.vy/3,-1,1),throttle:st.park?0:st.thr});trailTick(st.speed);plane.traverse(o=>{if(o.isSprite){o.userData.s0??=o.scale.x;o.scale.setScalar(o.userData.s0*Math.max(1,vh/10));}});
  // shadow: blob grows & fades with altitude
  const a=st.y;blob.position.set(st.x+a*.12,.01,st.z+a*.08);blob.scale.setScalar(3.2+a*.35);blob.material.opacity=THREE.MathUtils.clamp(1.05-a/22,.15,.9);
  sun.position.set(st.x+3,st.y+30,st.z+2);sun.target.position.set(st.x,0,st.z);
  // camera: altitude-linked ortho zoom; slight 3/4 tilt when low
- U.pilot.visible=!st.park;vh=THREE.MathUtils.lerp(vh,st.park?(st.view===0?6:4.2):st.view===2?7:7.5+a*.9,1-Math.exp(-dt*3));fit();
+ U.pilotOn=!st.park;vh=THREE.MathUtils.lerp(vh,st.park?(st.view===0?6:4.2):st.view===2?7:7.5+a*.9,1-Math.exp(-dt*3));fit();
  const tgt=new THREE.Vector3(st.x,a*.5,st.z);
  if(st.view===0){const tilt=THREE.MathUtils.clamp(.35-a*.012,.05,.35);cam.position.set(st.x,a+60,st.z+60*tilt);cam.up.set(0,0,-1);}
  else if(st.view===1){cam.position.set(st.x+40,a+(st.park?55:45),st.z+40);if(st.park)tgt.set(st.x,.6,st.z-.3);cam.up.set(0,1,0);}

@@ -1,4 +1,4 @@
-const V='kk-v38';const FILES=['./','./index.html','./game.js','./plane.html','./plane.js','./planeModel.js','./lib/three.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
+const V='kk-v39';const FILES=['./','./index.html','./game.js','./plane.html','./plane.js','./planeModel.js','./lib/three.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(V).then(c=>c.addAll(FILES)));});
 self.addEventListener('message',e=>{if(e.data==='skip')self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))));self.clients.claim();});
