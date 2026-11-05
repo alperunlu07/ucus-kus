@@ -16,10 +16,12 @@ const blob=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMateri
 const plane=buildPlane({canopy:true});plane.traverse(o=>{if(o.isMesh)o.castShadow=!o.material.transparent||o.material.map;});plane.userData.blur.parent.children.forEach(o=>{if(o.material&&o.material.isMeshBasicMaterial)o.castShadow=false;});const holder=new THREE.Group();holder.add(plane);S.add(holder);
 const cam=new THREE.OrthographicCamera(-1,1,1,-1,.1,300);
 const st={x:0,z:0,y:3,head:0,vy:0,steer:0,climb:0,view:0,auto:true,speed:0,thr:.0,park:true};window.__pl=st;
-const keys={};addEventListener('keydown',e=>{keys[e.key]=1;if(e.key==='v'||e.key==='V')st.view=(st.view+1)%3;if(e.key==='c'||e.key==='C')togCan();if(e.key==='f'||e.key==='F')togFly();if(e.key==='+'||e.key==='e')st.thr=Math.min(1,st.thr+.1);if(e.key==='-'||e.key==='q')st.thr=Math.max(.15,st.thr-.1);st.auto=false;});addEventListener('keyup',e=>keys[e.key]=0);
-let drag=null;addEventListener('pointerdown',e=>{if(e.target.tagName==='BUTTON'||e.target.tagName==='A')return;drag={x:e.clientX,y:e.clientY};st.auto=false;});addEventListener('pointermove',e=>{if(!drag)return;const s=Math.min(innerWidth,innerHeight)*.25;st.steer=THREE.MathUtils.clamp((e.clientX-drag.x)/s,-1,1);st.climb=THREE.MathUtils.clamp(-(e.clientY-drag.y)/s,-1,1);});addEventListener('pointerup',()=>{drag=null;st.steer=0;st.climb=0;});
+const keys={};addEventListener('keydown',e=>{keys[e.key]=1;if(st.park&&/^Arrow|^[wasd]$/.test(e.key))togFly();if(e.key==='v'||e.key==='V')st.view=(st.view+1)%3;if(e.key==='c'||e.key==='C')togCan();if(e.key==='f'||e.key==='F')togFly();if(e.key==='+'||e.key==='e')st.thr=Math.min(1,st.thr+.1);if(e.key==='-'||e.key==='q')st.thr=Math.max(.15,st.thr-.1);st.auto=false;});addEventListener('keyup',e=>keys[e.key]=0);
+const pad={};document.querySelectorAll('#pad button').forEach(b=>{const k=b.dataset.k;const on=e=>{e.preventDefault();e.stopPropagation();pad[k]=1;b.classList.add('on');st.auto=false;if(st.park)togFly();};const off=e=>{pad[k]=0;b.classList.remove('on');};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('pointerleave',off);});
+const thrEl=document.getElementById('thr');thrEl.addEventListener('input',()=>{st.thr=thrEl.value/100;st.auto=false;});
+let drag=null;addEventListener('pointerdown',e=>{if(e.target.closest('button,a,input,#thrW'))return;if(st.park)togFly();drag={x:e.clientX,y:e.clientY};st.auto=false;});addEventListener('pointermove',e=>{if(!drag)return;const s=Math.min(innerWidth,innerHeight)*.25;st.steer=THREE.MathUtils.clamp((e.clientX-drag.x)/s,-1,1);st.climb=THREE.MathUtils.clamp(-(e.clientY-drag.y)/s,-1,1);});addEventListener('pointercancel',()=>{drag=null;st.steer=0;st.climb=0;});addEventListener('pointerup',()=>{drag=null;st.steer=0;st.climb=0;});
 const U=plane.userData;function togCan(){U.canopyOpen=!U.canopyOpen;}
-function togFly(){st.park=!st.park;if(st.park){U.canopyOpen=true;st.thr=0;}else{U.canopyOpen=false;st.thr=Math.max(st.thr,.7);st.vy=2.5;}}window.__tog={togCan,togFly};
+function togFly(){st.park=!st.park;if(st.park){U.canopyOpen=true;st.thr=0;}else{U.canopyOpen=false;st.thr=Math.max(st.thr,thrEl?thrEl.value/100:.7,.3);st.vy=2.5;}}window.__tog={togCan,togFly};
 document.getElementById('bCan').onclick=togCan;document.getElementById('bFly').onclick=togFly;
 // wingtip trails: fading ribbons in world space
 const TN=60;const trails=U.tips.map(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(TN*2*3),3));g.setAttribute('a',new THREE.BufferAttribute(new Float32Array(TN*2),1));const ix=[];for(let i=0;i<TN-1;i++){const a=i*2;ix.push(a,a+1,a+2,a+1,a+3,a+2);}g.setIndex(ix);
@@ -33,8 +35,8 @@ let vh=10;function fit(){const w=vh*innerWidth/innerHeight;cam.left=-w/2;cam.rig
 addEventListener('resize',()=>{R.setSize(innerWidth,innerHeight);fit();});
 const clk=new THREE.Clock();let t=0;const altEl=document.getElementById('alt');
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.05);t+=dt;
- let steer=st.steer,climb=st.climb;if(keys.ArrowLeft||keys.a)steer=-1;if(keys.ArrowRight||keys.d)steer=1;if(keys.ArrowUp||keys.w)climb=1;if(keys.ArrowDown||keys.s)climb=-1;
- if(st.park){steer=0;climb=0;}else if(st.auto&&!drag){steer=Math.sin(t*.35)*.7;climb=THREE.MathUtils.clamp((3.5+Math.sin(t*.25)*1.5-st.y)*.5,-1,1);}
+ let steer=st.steer,climb=st.climb;if(pad.L)steer=-1;if(pad.R)steer=1;if(pad.U)climb=1;if(pad.D)climb=-1;if(keys.ArrowLeft||keys.a)steer=-1;if(keys.ArrowRight||keys.d)steer=1;if(keys.ArrowUp||keys.w)climb=1;if(keys.ArrowDown||keys.s)climb=-1;
+ if(st.park){steer=0;climb=0;}else if(st.auto&&!drag&&!pad.L&&!pad.R&&!pad.U&&!pad.D){steer=Math.sin(t*.35)*.7;climb=THREE.MathUtils.clamp((3.5+Math.sin(t*.25)*1.5-st.y)*.5,-1,1);}
  if(st.force){steer=st.force.steer;climb=st.force.climb;}
  st.speed+=((st.park?0:3+st.thr*9)-st.speed)*(1-Math.exp(-dt*1.5));
  st.head-=steer*dt*.9*Math.min(1,st.speed/4);st.vy+=(climb*3-st.vy)*(1-Math.exp(-dt*3));st.y=st.park?THREE.MathUtils.lerp(st.y,.22,1-Math.exp(-dt*2)):THREE.MathUtils.clamp(st.y+st.vy*dt,1.2,30);if(st.y<=1.2||st.y>=30)st.vy*=.5;
