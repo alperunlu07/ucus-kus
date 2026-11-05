@@ -14,6 +14,18 @@ const ground=new THREE.Mesh(new THREE.PlaneGeometry(800,800),new THREE.MeshLambe
 const bc=document.createElement('canvas');bc.width=bc.height=128;const bg=bc.getContext('2d');const gr=bg.createRadialGradient(64,64,4,64,64,62);gr.addColorStop(0,'rgba(60,45,35,.55)');gr.addColorStop(1,'rgba(60,45,35,0)');bg.fillStyle=gr;bg.fillRect(0,0,128,128);
 const blob=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(bc),transparent:true,depthWrite:false}));blob.rotation.x=-Math.PI/2;S.add(blob);
 const plane=buildPlane({canopy:true});plane.traverse(o=>{if(o.isMesh)o.castShadow=!o.material.transparent||o.material.map;});plane.userData.blur.parent.children.forEach(o=>{if(o.material&&o.material.isMeshBasicMaterial)o.castShadow=false;});const holder=new THREE.Group();holder.add(plane);S.add(holder);
+// height-readable silhouette shadow: plane rendered from above into a small RT, drawn on ground scaled/blurred/faded by altitude
+plane.traverse(o=>{o.castShadow=false;o.layers.enable(1);});
+const SRT=new THREE.WebGLRenderTarget(256,256);const SW=8;const scam=new THREE.OrthographicCamera(-SW/2,SW/2,SW/2,-SW/2,.1,100);scam.up.set(0,0,-1);scam.layers.set(1);
+const sMat=new THREE.MeshBasicMaterial({color:'#ffffff'});const sScene=new THREE.Scene();
+const shQ=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{map:{value:SRT.texture},blur:{value:0},op:{value:.5}},
+ vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+ fragmentShader:'uniform sampler2D map;uniform float blur,op;varying vec2 vUv;void main(){float a=0.,w=0.;for(int i=-3;i<=3;i++)for(int j=-3;j<=3;j++){vec2 o=vec2(float(i),float(j))*blur;float k=1.-length(vec2(i,j))/4.5;if(k>0.){a+=texture2D(map,vUv+o).r*k;w+=k;}}gl_FragColor=vec4(.24,.18,.13,a/w*op);}'}));
+shQ.rotation.x=-Math.PI/2;shQ.position.y=.015;S.add(shQ);
+function shadowTick(a){scam.position.set(st.x,a+20,st.z);scam.lookAt(st.x,0,st.z);const ov=S.overrideMaterial,bgc=S.background;S.overrideMaterial=sMat;S.background=new THREE.Color(0);R.setRenderTarget(SRT);R.render(S,scam);R.setRenderTarget(null);S.overrideMaterial=ov;S.background=bgc;
+ const h=Math.max(0,a-.2);const k=1/(1+h*.07);// smaller with height
+ shQ.scale.setScalar(SW*k);shQ.position.x=st.x+h*.35;shQ.position.z=st.z+h*.22;// slides along light
+ shQ.material.uniforms.blur.value=.0015+h*.0011;shQ.material.uniforms.op.value=THREE.MathUtils.clamp(.62-h*.03,.12,.62);}
 const cam=new THREE.OrthographicCamera(-1,1,1,-1,.1,300);
 const st={x:0,z:0,y:3,head:0,vy:0,steer:0,climb:0,view:0,auto:true,speed:0,thr:.0,park:true};window.__pl=st;
 const keys={};addEventListener('keydown',e=>{keys[e.key]=1;if(st.park&&/^Arrow|^[wasd]$/.test(e.key))togFly();if(e.key==='v'||e.key==='V')st.view=(st.view+1)%3;if(e.key==='c'||e.key==='C')togCan();if(e.key==='f'||e.key==='F')togFly();if(e.key==='+'||e.key==='e')st.thr=Math.min(1,st.thr+.1);if(e.key==='-'||e.key==='q')st.thr=Math.max(.15,st.thr-.1);st.auto=false;});addEventListener('keyup',e=>keys[e.key]=0);
@@ -43,7 +55,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.
  st.x+=-Math.sin(st.head)*st.speed*dt;st.z+=-Math.cos(st.head)*st.speed*dt;
  holder.position.set(st.x,st.y,st.z);holder.rotation.y=st.head;plane.userData.tick(dt,{steer,climb:THREE.MathUtils.clamp(st.vy/3,-1,1),throttle:st.park?0:st.thr,input:climb});trailTick(st.speed);plane.traverse(o=>{if(o.isSprite){o.userData.s0??=o.scale.x;o.scale.setScalar(o.userData.s0*Math.max(1,vh/10));}});
  // shadow: blob grows & fades with altitude
- const a=st.y;blob.position.set(st.x+a*.12,.01,st.z+a*.08);blob.scale.setScalar(3.2+a*.35);blob.material.opacity=THREE.MathUtils.clamp(1.05-a/22,.15,.9);
+ const a=st.y;blob.position.set(st.x+a*.12,.01,st.z+a*.08);blob.scale.setScalar(3.2+a*.35);blob.material.opacity=THREE.MathUtils.clamp(.9-a*.12,0,.9);blob.scale.setScalar(3.4);blob.position.set(st.x,.01,st.z);shadowTick(a);
  sun.position.set(st.x+3,st.y+30,st.z+2);sun.target.position.set(st.x,0,st.z);
  // camera: altitude-linked ortho zoom; slight 3/4 tilt when low
  U.pilotOn=!st.park;vh=THREE.MathUtils.lerp(vh,st.park?(st.view===0?6:4.2):st.view===2?7:7.5+a*.9,1-Math.exp(-dt*3));fit();
