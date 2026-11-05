@@ -39,7 +39,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.
  st.speed+=((st.park?0:3+st.thr*9)-st.speed)*(1-Math.exp(-dt*1.5));
  st.head-=steer*dt*.9*Math.min(1,st.speed/4);st.vy+=(climb*3-st.vy)*(1-Math.exp(-dt*3));st.y=st.park?THREE.MathUtils.lerp(st.y,.22,1-Math.exp(-dt*2)):THREE.MathUtils.clamp(st.y+st.vy*dt,1.2,30);if(st.y<=1.2||st.y>=30)st.vy*=.5;
  st.x+=-Math.sin(st.head)*st.speed*dt;st.z+=-Math.cos(st.head)*st.speed*dt;
- holder.position.set(st.x,st.y,st.z);holder.rotation.y=st.head;plane.userData.tick(dt,{steer,climb:THREE.MathUtils.clamp(st.vy/3,-1,1),throttle:st.park?0:st.thr});trailTick(st.speed);plane.traverse(o=>{if(o.isSprite){o.userData.s0??=o.scale.x;o.scale.setScalar(o.userData.s0*Math.max(1,vh/10));}});
+ holder.position.set(st.x,st.y,st.z);holder.rotation.y=st.head;plane.userData.tick(dt,{steer,climb:THREE.MathUtils.clamp(st.vy/3,-1,1),throttle:st.park?0:st.thr,input:climb});trailTick(st.speed);plane.traverse(o=>{if(o.isSprite){o.userData.s0??=o.scale.x;o.scale.setScalar(o.userData.s0*Math.max(1,vh/10));}});
  // shadow: blob grows & fades with altitude
  const a=st.y;blob.position.set(st.x+a*.12,.01,st.z+a*.08);blob.scale.setScalar(3.2+a*.35);blob.material.opacity=THREE.MathUtils.clamp(1.05-a/22,.15,.9);
  sun.position.set(st.x+3,st.y+30,st.z+2);sun.target.position.set(st.x,0,st.z);

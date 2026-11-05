@@ -114,7 +114,7 @@ export function buildPlane(opt={}){
  // tail wheel
  const tw=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.03,10),pt);tw.rotation.z=Math.PI/2;tw.position.set(0,-.38,.3);tail.add(tw);
  const twl=new THREE.Mesh(new THREE.BoxGeometry(.02,.2,.03),pd);twl.position.set(0,-.27,.25);twl.rotation.x=-.4;tail.add(twl);
- let ang=0,bank=0,pitch=0,yaw=0,rpm=.2,flapA=0,canA=opt.canopy?1:0,lt=0;
+ let cin=0,ang=0,bank=0,pitch=0,yaw=0,rpm=.2,flapA=0,canA=opt.canopy?1:0,lt=0;
  P.userData={cockpit,prop,blades,blur,ail,elev,rud,root,tips,canopy,pilot,flaps,canopyOpen:!!opt.canopy,
   tick(dt,o={}){const steer=o.steer||0,climb=o.climb||0,thr=o.throttle??o.spin??1;lt+=dt;
    // RPM: idle .12 .. full 1, a little more in climb, less in dive
@@ -122,7 +122,7 @@ export function buildPlane(opt={}){
    const f=THREE.MathUtils.smoothstep(rpm,.45,.85);blurM.opacity=.4*f;blurTip.material.opacity=.5*f;blades.children.forEach(b=>{b.material.transparent=true;b.material.opacity=1-.8*f;});
    const k=1-Math.exp(-dt*5);bank+=(-steer*.5-bank)*k;pitch+=(climb*.22-pitch)*k;yaw+=(steer-yaw)*k;root.rotation.z=bank;root.rotation.x=pitch;
    // right turn: right aileron up, left down; rudder trailing edge right; climb: elevator up
-   ail[1].rotation.x=-yaw*.6;ail[-1].rotation.x=yaw*.6;elev.rotation.x=-climb*.6;rud.rotation.y=yaw*.55;stick.rotation.z=-yaw*.3;stick.rotation.x=climb*.3;
+   ail[1].rotation.x=-yaw*.6;ail[-1].rotation.x=yaw*.6;cin+=((o.input??climb)-cin)*k;elev.rotation.x=-cin*.75;rud.rotation.y=yaw*.7;stick.rotation.z=-yaw*.3;stick.rotation.x=climb*.3;
    // flaps: drop at low power / descent / parked
    const ft=o.flaps??THREE.MathUtils.clamp(Math.max(0,.55-thr)*1.6+Math.max(0,-climb)*.7,0,1);flapA+=(ft-flapA)*(1-Math.exp(-dt*2));flaps.forEach(fl=>fl.rotation.x=flapA*.55);
    canA+=((P.userData.canopyOpen?1:0)-canA)*(1-Math.exp(-dt*4));canopy.rotation.x=canA*1.05;cockpit.visible=canA>.04;pilot.visible=cockpit.visible&&P.userData.pilotOn!==false;

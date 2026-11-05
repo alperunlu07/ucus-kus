@@ -625,7 +625,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
  const lim=riverX(birdPos.z);birdPos.x=THREE.MathUtils.clamp(birdPos.x,lim-34,lim+34);
  if(running)dist+=spd*dt;
  bird.position.copy(birdPos);bird.rotation.set(pitch,yaw,bank,'YXZ');
- const dive=THREE.MathUtils.clamp(-vy*.08,0,.6);const FR=BT[btype].fr||1;const flap=(Math.sin(t*(vy>1.5||boostT>0?14:5)*FR)*(BP.flap+Math.min(.5,Math.max(0,vy)*.1)+boostT*.3)*(1-dive))*(running?1:.7)-dive*.5;wL.rotation.z=flap;wR.rotation.z=-flap;oF+=(flap-oF)*(1-Math.exp(-dt*7));wLo.rotation.z=(oF-flap)*1.4+flap*.35;wRo.rotation.z=-wLo.rotation.z;if(plane.visible){plane.userData.tick(dt,{steer:tx,climb:THREE.MathUtils.clamp(vy*.15,-1,1),spin:running?1:.45});}wL.rotation.y=dive*.6;wR.rotation.y=-dive*.6;
+ const dive=THREE.MathUtils.clamp(-vy*.08,0,.6);const FR=BT[btype].fr||1;const flap=(Math.sin(t*(vy>1.5||boostT>0?14:5)*FR)*(BP.flap+Math.min(.5,Math.max(0,vy)*.1)+boostT*.3)*(1-dive))*(running?1:.7)-dive*.5;wL.rotation.z=flap;wR.rotation.z=-flap;oF+=(flap-oF)*(1-Math.exp(-dt*7));wLo.rotation.z=(oF-flap)*1.4+flap*.35;wRo.rotation.z=-wLo.rotation.z;if(plane.visible){plane.userData.tick(dt,{steer:tx,climb:THREE.MathUtils.clamp(vy*.15,-1,1),input:ty,spin:running?1:.45});}wL.rotation.y=dive*.6;wR.rotation.y=-dive*.6;
  tailS.rotation.z=Math.sin(t*12)*.3;
  // camera chase
  tmp.set(birdPos.x*.75,150,birdPos.z-VIEWH()*.18);camPos.x+=(tmp.x-camPos.x)*(1-Math.exp(-dt*2));camPos.z=tmp.z;camPos.y=150;cam.position.copy(camPos);
