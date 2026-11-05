@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'three';import {buildPlane} from './planeModel.js';
 const SET=Object.assign({vol:.8,sens:1,ghost:true,fastDay:false,invY:false},JSON.parse(localStorage.getItem('kk_set')||'{}'));
 const LOWP=['low','calm'].includes(JSON.parse(localStorage.getItem('kk_set')||'{}').gfx);
 let PROPK=(JSON.parse(localStorage.getItem('kk_set')||'{}').gfx==='calm')?.5:1;
@@ -389,15 +389,7 @@ const BT=[
  {n:'Pervaneli Uçak',e:'✈️',plane:1}];
 const wLo=new THREE.Mesh(wingG,wMat),wRo=new THREE.Mesh(wingG,wMat);wL.add(wLo);wR.add(wRo);wLo.castShadow=wRo.castShadow=true;
 const tipMat=lam('#4a4a52');tipMat.side=THREE.DoubleSide;tipMat.flatShading=true;const tipL=new THREE.Mesh(wingG,tipMat),tipR=new THREE.Mesh(wingG,tipMat);wLo.add(tipL);wRo.add(tipR);
-const plane=new THREE.Group();{const pm=lam('#fbf6ec'),pa=lam('#e8766b');for(const m of[pm,pa]){m.flatShading=true;}
- const fu=new THREE.Mesh(new THREE.CylinderGeometry(.32,.18,3.2,6),pm);fu.rotation.x=Math.PI/2;fu.position.y=.3;
- const nose=new THREE.Mesh(new THREE.ConeGeometry(.33,.5,6),pa);nose.rotation.x=-Math.PI/2;nose.position.set(0,.3,-1.85);
- const wing=new THREE.Mesh(G.box,pm);wing.scale.set(5.6,.08,.85);wing.position.set(0,.18,-.35);const st1=new THREE.Mesh(G.box,pa);st1.scale.set(5.62,.09,.2);st1.position.set(0,.19,-.62);
- const tp=new THREE.Mesh(G.box,pm);tp.scale.set(2,.06,.5);tp.position.set(0,.3,1.35);const fin=new THREE.Mesh(G.box,pa);fin.scale.set(.06,.7,.55);fin.position.set(0,.3,1.4);
- const cock=new THREE.Mesh(new THREE.SphereGeometry(.24,8,5,0,Math.PI*2,0,Math.PI/2),lam('#7aa6c2'));cock.scale.set(1,.8,1.6);cock.position.set(0,.55,-.5);
- const prop=new THREE.Group();prop.position.set(0,.3,-2.12);for(let i=0;i<2;i++){const bl=new THREE.Mesh(G.box,lam('#5d4b3a'));bl.scale.set(1.7,.05,.12);bl.position.y=-.025;bl.rotation.y=i*Math.PI;prop.add(bl);}
- const disc=new THREE.Mesh(new THREE.CircleGeometry(.9,20),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.18,depthWrite:false,side:THREE.DoubleSide}));disc.material.opacity=.1;prop.add(disc);
- [fu,wing,tp,fin,nose].forEach(m=>m.castShadow=true);plane.add(fu,nose,wing,st1,tp,fin,cock,prop);plane.userData.prop=prop;plane.visible=false;bird.add(plane);}
+const plane=buildPlane();plane.visible=false;bird.add(plane);
 let btype=+localStorage.getItem('kk_type')||0,oF=0;
 function applyType(i){const T=BT[i];btype=i;localStorage.setItem('kk_type',i);const isP=!!T.plane;plane.visible=isP;[bBody,tail,wL,wR].forEach(m=>m.visible=!isP);
  if(!isP){bBody.geometry=bodyGeo(T.st);wL.geometry=wR.geometry=polyG(T.inC,T.in);const xo=T.in.reduce((a,p)=>Math.max(a,p[0]),0);const og=polyG(T.outC,T.out);wLo.geometry=wRo.geometry=og;wLo.position.set(xo,0,0);wRo.position.set(xo,0,0);
@@ -633,7 +625,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
  const lim=riverX(birdPos.z);birdPos.x=THREE.MathUtils.clamp(birdPos.x,lim-34,lim+34);
  if(running)dist+=spd*dt;
  bird.position.copy(birdPos);bird.rotation.set(pitch,yaw,bank,'YXZ');
- const dive=THREE.MathUtils.clamp(-vy*.08,0,.6);const FR=BT[btype].fr||1;const flap=(Math.sin(t*(vy>1.5||boostT>0?14:5)*FR)*(BP.flap+Math.min(.5,Math.max(0,vy)*.1)+boostT*.3)*(1-dive))*(running?1:.7)-dive*.5;wL.rotation.z=flap;wR.rotation.z=-flap;oF+=(flap-oF)*(1-Math.exp(-dt*7));wLo.rotation.z=(oF-flap)*1.4+flap*.35;wRo.rotation.z=-wLo.rotation.z;if(plane.visible){plane.userData.prop.rotation.z+=dt*(running?40:18);plane.rotation.z=Math.sin(t*1.3)*.03;}wL.rotation.y=dive*.6;wR.rotation.y=-dive*.6;
+ const dive=THREE.MathUtils.clamp(-vy*.08,0,.6);const FR=BT[btype].fr||1;const flap=(Math.sin(t*(vy>1.5||boostT>0?14:5)*FR)*(BP.flap+Math.min(.5,Math.max(0,vy)*.1)+boostT*.3)*(1-dive))*(running?1:.7)-dive*.5;wL.rotation.z=flap;wR.rotation.z=-flap;oF+=(flap-oF)*(1-Math.exp(-dt*7));wLo.rotation.z=(oF-flap)*1.4+flap*.35;wRo.rotation.z=-wLo.rotation.z;if(plane.visible){plane.userData.tick(dt,{steer:tx,climb:THREE.MathUtils.clamp(vy*.15,-1,1),spin:running?1:.45});}wL.rotation.y=dive*.6;wR.rotation.y=-dive*.6;
  tailS.rotation.z=Math.sin(t*12)*.3;
  // camera chase
  tmp.set(birdPos.x*.75,150,birdPos.z-VIEWH()*.18);camPos.x+=(tmp.x-camPos.x)*(1-Math.exp(-dt*2));camPos.z=tmp.z;camPos.y=150;cam.position.copy(camPos);
