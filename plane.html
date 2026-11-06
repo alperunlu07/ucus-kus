@@ -1,0 +1,16 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Kağıt Kuş · Uçak Atölyesi</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#efe8da;font-family:system-ui,sans-serif;touch-action:none}
+#hud{position:fixed;left:12px;top:12px;right:12px;display:flex;justify-content:space-between;align-items:center;color:#4a4552;font-size:14px;pointer-events:none}
+#hud b{background:#fffaf0ee;padding:6px 10px;border-radius:10px;box-shadow:0 1px 3px #0002}
+#hud a{pointer-events:auto;background:#e8766b;color:#fff;text-decoration:none;padding:6px 12px;border-radius:10px}
+#help{position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#6b5a48;font-size:13px;pointer-events:none}
+#views{position:fixed;right:12px;bottom:44px;display:flex;flex-direction:column;gap:6px}#views button{border:0;border-radius:10px;padding:8px 10px;background:#fffaf0;color:#4a4552;box-shadow:0 1px 3px #0002}#pad{position:fixed;left:12px;bottom:44px;display:grid;grid-template-columns:repeat(4,56px);gap:6px}#pad button{height:56px;border:0;border-radius:14px;background:#fffaf0e8;font-size:22px;color:#4a4552;box-shadow:0 1px 3px #0003;touch-action:none;user-select:none;-webkit-user-select:none}#pad button.on{background:#e8766b;color:#fff}
+#thrW{position:fixed;left:12px;bottom:112px;background:#fffaf0e8;border-radius:12px;padding:6px 10px;display:flex;gap:8px;align-items:center;color:#4a4552;font-size:13px}#thrW input{width:150px}
+#bFly{background:#e8766b!important;color:#fff!important;font-weight:600}</style>
+<script type="importmap">{"imports":{"three":"./lib/three.js"}}</script></head><body>
+<div id="hud"><b id="alt">✈ Uçak atölyesi</b><a href="./?game=1">Oyuna dön</a></div>
+<div id="views"><button id="bFly">Uç / Park</button><button id="bCan">Kanopi</button><button data-v="0">Üstten</button><button data-v="1">3/4</button><button data-v="2">Yandan</button></div>
+<div id="pad"><button data-k="L">◀</button><button data-k="U">▲</button><button data-k="D">▼</button><button data-k="R">▶</button></div>
+<div id="thrW"><span>Gaz</span><input id="thr" type="range" min="0" max="100" value="70"></div>
+<div id="help">Uç’a bas · ekranı sürükle ya da ◀ ▲ ▼ ▶ · klavye: oklar, F, C, Q/E</div>
+<script type="module" src="./plane.js"></script></body></html>
