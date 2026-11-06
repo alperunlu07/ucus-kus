@@ -1,4 +1,4 @@
-import * as THREE from 'three';import {buildPlane} from './planeModel.js';
+import * as THREE from 'three';import {buildPlane} from './planeModel.js';import {woolGeo,sharedHead,HEAD_PIVOT,WOOL} from './sheepModel.js';
 const SET=Object.assign({vol:.8,sens:1,ghost:true,fastDay:false,invY:false},JSON.parse(localStorage.getItem('kk_set')||'{}'));
 const LOWP=['low','calm'].includes(JSON.parse(localStorage.getItem('kk_set')||'{}').gfx);
 let PROPK=(JSON.parse(localStorage.getItem('kk_set')||'{}').gfx==='calm')?.5:1;
@@ -226,17 +226,20 @@ const CR={sheep:{n:[12,22],c:'#f4efe4',s:[.46,.32,.62],head:1,sp:4,sc:12,toast:'
  deer:{n:[3,6],c:'#a0623a',s:[.36,.32,.75],head:1,sp:10,sc:6,hop:1,toast:'Geyikler sıçradı 🦌'},rabbit:{n:[4,8],c:'#d9c7a8',s:[.22,.2,.3],head:1,sp:9,sc:4,hop:1,toast:'Tavşanlar kaçıştı 🐇'},
  pduck:{n:[5,9],c:'#fffaf0',s:[.26,.18,.4],sp:5,sc:6,paddy:1,head:1,toast:'Ördekler tarlada kanat çırptı 🦆'},duck:{n:[4,8],c:'#fffaf0',s:[.26,.18,.4],sp:5,sc:5,water:1,head:1,toast:'Ördekler suya daldı 🦆'},bird:{n:[8,14],c:'#2f2a28',s:[.3,.12,.3],sp:12,sc:6,fly:1,toast:'Kuş sürüsü havalandı 🐦'}};
 const crowdGeo=new THREE.IcosahedronGeometry(1,1),birdGeo=(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,.6, -1.2,0,-.3, 0,0,-.1, 0,0,.6, 0,0,-.1, 1.2,0,-.3],3));g.computeVertexNormals();return g;})();
-const crowdMat=cloudify(new THREE.MeshLambertMaterial({color:'#ffffff',side:THREE.DoubleSide}));const seenCrowd={};let crowdToastT=0;
+const crowdMat=cloudify(new THREE.MeshLambertMaterial({color:'#ffffff',side:THREE.DoubleSide}));const seenCrowd={};const sheepMat=cloudify(new THREE.MeshLambertMaterial({color:'#ffffff',vertexColors:true}));const sheepGeos=[1,2,3].map(k=>woolGeo(k,14,false,'#2d2724')),sheepHead=sharedHead('#2d2724');const _hm=new THREE.Matrix4(),_hq=new THREE.Quaternion(),_hp=new THREE.Vector3(...HEAD_PIVOT),_one=new THREE.Vector3(1,1,1);let crowdToastT=0;
 function addCrowd(g,ch,kind,hx,hz,r){const c=CR[kind];const n=c.n[0]+Math.floor(r()*(c.n[1]-c.n[0]+1));
- const im=new THREE.InstancedMesh(c.fly?birdGeo:crowdGeo,crowdMat,n);im.castShadow=!c.fly;const col=C(c.c);const ms=[];
- for(let i=0;i<n;i++){const x=hx+(r()-.5)*c.sc,z=hz+(r()-.5)*c.sc;if(!c.water&&!c.paddy&&!c.fly&&isWet(x,z)){ms.push(null);continue;}ms.push({x,z,y:0,vx:0,vz:0,ph:r()*6,yaw:r()*6,hop:0});
-  im.setColorAt(i,kind==='sheep'&&r()<.1?C('#3b332e'):kind==='cow'&&r()<.4?C('#f1ebe0'):col.clone().offsetHSL(0,0,(r()-.5)*.1));}
- let hm=null;if(c.head){hm=new THREE.InstancedMesh(crowdGeo,crowdMat,n);hm.frustumCulled=false;const hc=C(kind==='sheep'?'#3a312b':kind.includes('duck')?'#3f7d4e':c.c);for(let i=0;i<n;i++)hm.setColorAt(i,hc);g.add(hm);}
+ const SH=kind==='sheep';const im=new THREE.InstancedMesh(SH?sheepGeos[Math.floor(r()*3)]:c.fly?birdGeo:crowdGeo,SH?sheepMat:crowdMat,n);im.castShadow=!c.fly;const col=C(c.c);const ms=[];
+ for(let i=0;i<n;i++){const x=hx+(r()-.5)*c.sc,z=hz+(r()-.5)*c.sc;if(!c.water&&!c.paddy&&!c.fly&&isWet(x,z)){ms.push(null);continue;}ms.push({x,z,y:0,vx:0,vz:0,ph:r()*6,yaw:r()*6,hop:0,sz:SH?.9+r()*.2:1,hp:0});
+  im.setColorAt(i,SH?C(r()<.1?WOOL.kara:r()<.06?WOOL.kahve:WOOL.krem).offsetHSL(0,0,(r()-.5)*.04):SH&&r()<.1?C('#3b332e'):kind==='cow'&&r()<.4?C('#f1ebe0'):col.clone().offsetHSL(0,0,(r()-.5)*.1));}
+ let hm=null;if(SH){hm=new THREE.InstancedMesh(sheepHead,sheepMat,n);hm.castShadow=true;hm.frustumCulled=false;g.add(hm);}else if(c.head){hm=new THREE.InstancedMesh(crowdGeo,crowdMat,n);hm.frustumCulled=false;const hc=C(kind==='sheep'?'#3a312b':kind.includes('duck')?'#3f7d4e':c.c);for(let i=0;i<n;i++)hm.setColorAt(i,hc);g.add(hm);}
  im.frustumCulled=false;g.add(im);const d={hm,type:'crowd',o:im,chunk:ch,kind,c,ms,cx:hx,cz:hz,scared:0,wx:(r()-.5),wz:(r()-.5),cool:0,init:0};crowdSet(d,0);dynamic.push(d);}
 const _m4=new THREE.Matrix4(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_v=new THREE.Vector3(),_s=new THREE.Vector3();
 function isWet(x,z){const dx=x-riverX(z);return Math.abs(dx)<9.5||(biome(z)===3&&dx<-10)||height(x,z)<-.3;}
 function gH(m){if(m.gx===undefined||Math.abs(m.gx-m.x)+Math.abs(m.gz-m.z)>.4){m.gx=m.x;m.gz=m.z;m.gh=height(m.x,m.z);}return m.gh;}
 function crowdSet(d,t){const c=d.c;for(let i=0;i<d.ms.length;i++){const m=d.ms[i];if(!m){_m4.makeScale(0,0,0);d.o.setMatrixAt(i,_m4);if(d.hm)d.hm.setMatrixAt(i,_m4);continue;}
+ if(d.kind==='sheep'){const sc=d.scared>0,mv=Math.hypot(m.vx,m.vz);const tp=m.gr&&!sc?.9+Math.sin(t*9+m.ph)*.05:.08;m.hp+=(tp-m.hp)*.08;const w=t*(sc?11:7)+m.ph,wk=Math.min(1,mv*1.5);
+  const y=gH(m)+Math.abs(Math.sin(m.hop))*.3+Math.abs(Math.sin(w))*.04*wk;_e.set(0,m.yaw,Math.sin(w)*.07*wk);_q.setFromEuler(_e);_s.setScalar(m.sz);_m4.compose(_v.set(m.x,y,m.z),_q,_s);d.o.setMatrixAt(i,_m4);
+  _e.set(m.hp,0,0);_hq.setFromEuler(_e);_hm.compose(_hp,_hq,_one);_hm.premultiply(_m4);d.hm.setMatrixAt(i,_hm);continue;}
  let y;if(c.paddy)y=Math.max(gH(m),-1.3)+.12+Math.sin(t*2+m.ph)*.04;else if(c.water)y=-1.45+Math.sin(t*2+m.ph)*.05;else if(c.fly)y=Math.max(gH(m),-1.3)+.15+m.y;else y=gH(m)+c.s[1]*.8+Math.abs(Math.sin(m.hop))*(c.hop?.9:.25);
  _e.set(0,m.yaw,c.fly&&m.y>.5?Math.sin(t*14+m.ph)*.6:0);_q.setFromEuler(_e);_s.set(c.s[0]*1.2,c.s[1]*1.2,c.s[2]*1.2);if(c.fly){const f=m.y>.5?1:.6;_s.set(.8*f,1,.8*f);if(m.y>.5)_s.x*=.6+Math.abs(Math.sin(t*14+m.ph))*.6;}
  _m4.compose(_v.set(m.x,y,m.z),_q,_s);d.o.setMatrixAt(i,_m4);if(d.hm){const hs=c.s[1]*.75*1.2;_v.set(m.x+Math.sin(m.yaw)*c.s[2]*1.2*.95,y+c.s[1]*(m.gr&&d.scared<=0?.05:.5),m.z+Math.cos(m.yaw)*c.s[2]*1.2*(m.gr&&d.scared<=0?1.05:.95));_s.set(hs,hs,hs*1.2);_m4.compose(_v,_q,_s);d.hm.setMatrixAt(i,_m4);}}if(d.hm){d.hm.instanceMatrix.needsUpdate=true;if(!d.init&&d.hm.instanceColor)d.hm.instanceColor.needsUpdate=true;}d.o.instanceMatrix.needsUpdate=true;if(!d.init&&d.o.instanceColor){d.o.instanceColor.needsUpdate=true;d.init=1;}}
