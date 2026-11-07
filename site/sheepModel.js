@@ -21,10 +21,12 @@ vec3 fp = vFeltPosition * 155.0;
 float fibreAA = 1.0-smoothstep(0.35,1.8,length(fwidth(fp)));
 float fibres = feltNoise(fp) - 0.5;
 float mottling = feltNoise(vFeltPosition*27.0)-0.5;
-diffuseColor.rgb *= 0.985 + mottling*0.065 + fibres*${dark?'0.07':'0.15'}*fibreAA;
+float feltAA = 1.0-smoothstep(0.2,1.4,length(fwidth(vFeltPosition*62.0)));
+float nap = feltNoise(vFeltPosition*62.0 + vec3(mottling*0.8))-0.5;
+diffuseColor.rgb *= 0.987 + mottling*0.052 + nap*${dark?'0.025':'0.085'}*feltAA + fibres*${dark?'0.07':'0.14'}*fibreAA;
 `);
  };
- m.customProgramCacheKey=()=> 'sheep-felt-v46-'+dark;
+ m.customProgramCacheKey=()=> 'sheep-felt-v47-'+dark;
  return m;
 }
 // Merge with baked clump contact occlusion and subtle warm/cool variation.
@@ -61,24 +63,35 @@ function blobSdf(bl,x,y,z){let d=1e9;for(const q of bl){const dx=(x-q[0])/q[3],d
 function fbm(x,y,z,ph){const wx=x+.3*Math.sin(y*7+ph),wy=y+.3*Math.sin(z*6-ph),wz=z+.3*Math.sin(x*7.5+ph);
  return .55*Math.sin(wx*13+ph)*Math.cos(wy*11-ph)*Math.sin(wz*12+1.3)+.3*Math.sin(wx*23+wy*9+ph)*Math.cos(wz*21-ph)+.15*Math.cos(wy*41+wz*33+ph);}
 export function woolGeo(seed=1,max=16,lamb=false,legs=null,det=3,withTail=false){const R=rng(seed*977+3);const{cy,rx,ry,rz}=BODY;const bl=[];
- const K=.075;bl.push([0,cy,0,rx*.93,ry*.95,rz*.93,K]);
- const n=Math.min(max,13+Math.floor(R()*4));
- for(let i=0;i<n;i++){const a=i/n*Math.PI*2+(R()-.5)*.35,up=-.45+R()*.85;const r=.13+R()*.11;const e=Math.sqrt(1-up*up*.45);
-  if(Math.sin(a)>.8&&up>.1)continue;
-  bl.push([Math.cos(a)*rx*.8*e,cy+up*ry*.95,Math.sin(a)*rz*.8*e,r*(.88+R()*.28),r*(.64+R()*.25),r*(.88+R()*.3),K]);}
- for(let i=0;i<4;i++){const r=.17+R()*.05;bl.push([(R()-.5)*.36,cy+ry*.62,(i-1.5)*.24+(R()-.5)*.06,r*(.9+R()*.25),r*(.5+R()*.15),r,K]);}
- for(let i=0;i<14;i++){const a=R()*6.28,u=.25+R()*.6,r=.09+R()*.06;const e=Math.sqrt(1-u*u);const x=Math.cos(a)*rx*.78*e,z=Math.sin(a)*rz*.8*e;if(z>rz*.55&&Math.abs(x)<.16)continue;bl.push([x,cy+u*ry*.95,z,r,r*.75,r,K]);}
- bl.push([0,cy+.12,rz*.84,.15,.095,.13,.09]);// forelock = a front hill of the same hull
- if(withTail)bl.push([TAIL_POS[0],TAIL_POS[1],TAIL_POS[2]-.02,.1,.09,.12,.07]);
+ // Tighter cotton-nub hills, fused well below the surface. The low bean core
+ // remains the silhouette; none of these contributors is a separate mesh.
+ const K=.058;bl.push([0,cy,0,rx*.94,ry*.95,rz*.94,.075]);
+ const n=Math.min(max+6,22+Math.floor(R()*3));
+ for(let i=0;i<n;i++){const a=i/n*Math.PI*2+(R()-.5)*.19,up=-.35+R()*.62;const r=.115+R()*.05;const e=Math.sqrt(1-up*up*.45);
+  bl.push([Math.cos(a)*rx*.86*e,cy+up*ry,Math.sin(a)*rz*.85*e,r*(.92+R()*.14),r*(.73+R()*.12),r*(.95+R()*.14),K]);}
+ // Final polish: irregular equal-area cap avoids rows and a broad hat-like
+ // crown. These smaller hills are still fused into the low oval silhouette.
+ for(let i=0;i<32;i++){
+  const u=.22+.76*(i+.5)/32,a=i*2.399963+(R()-.5)*.24,e=Math.sqrt(1-u*u);
+  const x=Math.cos(a)*rx*e*.88,z=Math.sin(a)*rz*e*.88;
+  const r=.102+R()*.025;bl.push([x,cy+u*ry*.85,z,r*(.93+R()*.12),r*(.69+R()*.12),r*(.96+R()*.15),.048]);}
+ // Forelock and tapered cheek/chest grow from the hull, not a hat rim.
+ bl.push([0,cy+.105,rz*.83,.143,.09,.145,.085]);
+ for(const side of[-1,1])bl.push([side*.112,cy-.04,rz*.8,.095,.14,.115,.07]);
+ if(withTail){
+  // Broad buried root, tapering to a short folded tip; same watertight hull.
+  bl.push([0,cy+.015,-rz*.91,.13,.10,.145,.085]);
+  bl.push([0,cy+.035,-rz*1.08,.078,.065,.102,.07]);
+ }
  if(lamb)for(const q of bl){q[0]*=.95;q[1]=(q[1]-cy)*1.05+cy;q[2]*=.88;q[3]*=.95;q[4]*=1.05;q[5]*=.88;}
  const res=Math.max(10,det>=3?44:det>=2?22:16);
  const g0=new THREE.IcosahedronGeometry(1,res);const pp=g0.attributes.position;const vmap=new Map(),idx=[],V=[];
  for(let i=0;i<pp.count;i++){const k=[pp.getX(i),pp.getY(i),pp.getZ(i)].map(x=>Math.round(x*1e5)).join(',');let j=vmap.get(k);if(j===undefined){j=V.length/3;vmap.set(k,j);V.push(pp.getX(i),pp.getY(i),pp.getZ(i));}idx.push(j);}
- const puffs=[];{const Q=rng(seed*131+7);for(let i=0;i<260;i++){const u=Q()*2-1,a=Q()*6.28,w=Math.sqrt(1-u*u);const sg=.004+Q()*.007;puffs.push([w*Math.cos(a),u,w*Math.sin(a),.03+Q()*.03,sg]);}}
+ const puffs=[];{const Q=rng(seed*131+7);for(let i=0;i<260;i++){const u=Q()*2-1,a=Q()*6.28,w=Math.sqrt(1-u*u);const sg=.0025+Q()*.004;puffs.push([w*Math.cos(a),u,w*Math.sin(a),.028+Q()*.035,sg]);}}
  const nv=V.length/3,P=new Float32Array(nv*3),ph=seed*1.37;
  for(let j=0;j<nv;j++){let dx=V[j*3],dy=V[j*3+1],dz=V[j*3+2];let lo=0,hi=1.3;
   for(let it=0;it<26;it++){const m=(lo+hi)/2;if(blobSdf(bl,dx*m,cy+dy*m,dz*m)<0)lo=m;else hi=m;}
-  let r=lo,bump=0;for(const q of puffs){const dd=dx*q[0]+dy*q[1]+dz*q[2];if(dd>.9){const a2=(1-dd)*2;bump+=q[3]*Math.exp(-a2/q[4]);}}r*=1+Math.min(.075,bump)+.006*fbm(dx,dy,dz,ph);P[j*3]=dx*r;P[j*3+1]=cy+dy*r;P[j*3+2]=dz*r;}
+  let r=lo,bump=0;for(const q of puffs){const dd=dx*q[0]+dy*q[1]+dz*q[2];if(dd>.9){const a2=(1-dd)*2;bump+=q[3]*Math.exp(-a2/q[4]);}}r*=1+Math.min(.065,bump)+.004*fbm(dx,dy,dz,ph);P[j*3]=dx*r;P[j*3+1]=cy+dy*r;P[j*3+2]=dz*r;}
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setIndex(idx);g.computeVertexNormals();
  // curvature: offset of vertex from its neighbour average along the normal
  const nb=new Float32Array(nv*3),cnt=new Float32Array(nv);for(let t=0;t<idx.length;t+=3)for(let e=0;e<3;e++){const a=idx[t+e],b=idx[t+(e+1)%3];for(let c=0;c<3;c++){nb[a*3+c]+=P[b*3+c];nb[b*3+c]+=P[a*3+c];}cnt[a]++;cnt[b]++;}
@@ -86,16 +99,20 @@ export function woolGeo(seed=1,max=16,lamb=false,legs=null,det=3,withTail=false)
  for(let j=0;j<nv;j++){let d=0;for(let c=0;c<3;c++)d+=(P[j*3+c]-nb[j*3+c]/cnt[j])*N[j*3+c];cv[j]=d;}
  // blur curvature twice so AO reads as soft folds
  for(let pass=0;pass<3;pass++){const s2=new Float32Array(nv),c2=new Float32Array(nv);for(let t=0;t<idx.length;t+=3)for(let e=0;e<3;e++){const a=idx[t+e],b=idx[t+(e+1)%3];s2[a]+=cv[b];s2[b]+=cv[a];c2[a]++;c2[b]++;}for(let j=0;j<nv;j++)cv[j]=cv[j]*.4+.6*s2[j]/c2[j];}
- const sc=1/(.004*44/res);const C=new Float32Array(nv*3);
+ const sc=1/(.0033*44/res);const C=new Float32Array(nv*3);
  for(let j=0;j<nv;j++){const k=Math.max(-1,Math.min(1,cv[j]*sc));const ny=N[j*3+1];
-  const v=.955+.045*Math.max(0,k)-.17*Math.max(0,-k)-.09*Math.max(0,-ny);
-  C[j*3]=v*(1+.012*Math.max(0,k));C[j*3+1]=v*.99;C[j*3+2]=v*(.965-.02*Math.max(0,-k));}
+  const v=.955+.045*Math.max(0,k)-.20*Math.max(0,-k)-.075*Math.max(0,-ny);
+  C[j*3]=v*(1+.012*Math.max(0,k)-.018*Math.max(0,-k));C[j*3+1]=v*.99;C[j*3+2]=v*(.97+.012*Math.max(0,-k));}
  g.setAttribute('color',new THREE.BufferAttribute(C,3));
  const parts=[[g.toNonIndexed(),'attr']];
  if(legs)for(const q of LEGS){const l=LEG.clone();l.translate(...q);parts.push([l,legs]);}
  return merge(parts);}
-export const TAIL_POS=[0,.56,-.66];
-export const tailGeo=(()=>{const g=lumpy(.1,9,3);g.scale(1,.9,1.2);g.translate(0,0,-.04);return merge([[g]]);})();
+// Workshop tail wag is a local deformation of the same continuous hull.
+// The buried root has zero weight, so there is no moving seam or glued-on ball.
+function addTailMorph(g){const p=g.attributes.position,t=p.clone();
+ for(let i=0;i<p.count;i++){const z=p.getZ(i),w=sm((-z-.47)/.28);t.setX(i,p.getX(i)+(-z-.47)*w*.8);}
+ const ng=g.clone();ng.setAttribute('position',t);smoothNormals(ng);
+ g.morphAttributes.position=[t];g.morphAttributes.normal=[ng.attributes.normal.clone()];ng.dispose();return g;}
 // short sturdy legs, pivot at hip
 export const LEG=(()=>{const g=new THREE.CylinderGeometry(.066,.052,.3,12,3);const p=g.attributes.position;
  for(let i=0;i<p.count;i++){const y=p.getY(i),f=1+.035*Math.sin(y*21);p.setX(i,p.getX(i)*f);p.setZ(i,p.getZ(i)*f);}g.translate(0,-.15,0);return smoothNormals(g);})();
@@ -124,7 +141,7 @@ export function headGeo(face='#2d2724'){const parts=[];
  return merge(parts);}
 export function legsGeo(face='#2d2724'){return merge(LEGS.map(p=>{const g=LEG.clone();g.translate(...p);return[g,face];}));}
 const _hg={};export function sharedHead(face){return _hg[face]||(_hg[face]=headGeo(face));}
-const _wg={};export function sharedWool(seed,lamb){const k=seed+'_'+lamb;return _wg[k]||(_wg[k]=woolGeo(seed,16,lamb));}
+const _wg={};export function sharedWool(seed,lamb){const k=seed+'_'+lamb;return _wg[k]||(_wg[k]=addTailMorph(woolGeo(seed,16,lamb,null,3,true)));}
 // ---- shared pose solver (workshop + game). u keeps blend weights & phases; returns pose P
 const ST=['idle','graze','walk','hop'];const sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
 export function newPoseState(seed=0){return{t:seed*3.7,w:{idle:1,graze:0,walk:0,hop:0},wp:seed,hp:0,P:{y:0,roll:0,pitch:0,sx:1,sy:1,hx:0,hy:0,hz:0,hp:0,hyaw:0,hroll:0,legs:[0,0,0,0],tuck:0,tail:0},seed};}
@@ -155,17 +172,16 @@ export function createSheep(o={}){const seed=o.seed??1,face=o.faceColor||'#2d272
  const woolMat=makeFeltMaterial(o.woolColor||WOOL.krem);const dark=makeFeltMaterial('#ffffff',true);
  const g=new THREE.Group(),body=new THREE.Group();g.add(body);const fluff=new THREE.Group();body.add(fluff);
  const wool=new THREE.Mesh(sharedWool(seed%6,!!o.isLamb),woolMat);fluff.add(wool);
- const tail=new THREE.Mesh(tailGeo,woolMat);tail.position.set(...TAIL_POS);fluff.add(tail);
  const head=new THREE.Group();head.position.set(...HEAD_PIVOT);head.add(new THREE.Mesh(sharedHead(face),dark));body.add(head);
  const lg=legGeo(face);const legs=LEGS.map(p=>{const l=new THREE.Mesh(lg,dark);l.position.set(...p);body.add(l);return l;});
  g.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;}});
  const sc=(o.scale||1)*(o.isLamb?.66:1);g.scale.setScalar(sc);if(o.isLamb){head.scale.setScalar(1.32);}
- g.userData={body,fluff,head,legs,tail,wool,woolMat,u:newPoseState(seed+Math.random()*9),state:'idle'};return g;}
+ g.userData={body,fluff,head,legs,wool,woolMat,u:newPoseState(seed+Math.random()*9),state:'idle'};return g;}
 export function setWool(sh,c){sh.userData.woolMat.color.set(c);}
 // state: idle | graze | walk | hop
 export function updateSheep(sh,state,dt,speed=1){const d=sh.userData;d.state=state;const P=solvePose(d.u,state,dt,speed);
  d.body.position.y=P.y;d.body.rotation.set(P.pitch,0,P.roll);d.fluff.scale.set(P.sx,P.sy,P.sx);
  d.head.position.set(HEAD_PIVOT[0],HEAD_PIVOT[1]*P.sy+P.hy,HEAD_PIVOT[2]+P.hz);d.head.rotation.set(P.hp,P.hyaw,P.hroll,'YXZ');
- d.tail.rotation.set(0,P.tail,0);
+ d.wool.morphTargetInfluences[0]=P.tail;
  d.legs.forEach((l,i)=>{l.rotation.x=P.legs[i];l.scale.y=Math.max(.6,1+Math.min(0,P.y)/.3)*(1-P.tuck*.25);});
  return P;}
