@@ -1,7 +1,7 @@
 import * as THREE from 'three';import {createSheep,updateSheep,setWool,WOOL} from './sheepModel.js';
 const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;R.outputColorSpace=THREE.SRGBColorSpace;document.body.prepend(R.domElement);
 const S=new THREE.Scene();S.background=new THREE.Color('#efe8da');
-S.add(new THREE.HemisphereLight('#fffaf0','#a9b98a',1.7));const sun=new THREE.DirectionalLight('#fff1d6',1.7);sun.position.set(6,12,5);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.radius=10;sun.shadow.intensity=.55;sun.shadow.bias=-.0008;Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.5,far:60});S.add(sun);
+S.add(new THREE.HemisphereLight('#fffaf0','#a9b98a',1.45));const sun=new THREE.DirectionalLight('#fff3df',1.5);sun.position.set(6,12,5);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.radius=10;sun.shadow.intensity=.55;sun.shadow.bias=-.0008;Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.5,far:60});S.add(sun);
 const c=document.createElement('canvas');c.width=c.height=512;const g=c.getContext('2d');g.fillStyle='#9cc26a';g.fillRect(0,0,512,512);
 for(let i=0;i<5000;i++){g.fillStyle=Math.random()<.5?`rgba(70,110,40,${Math.random()*.08})`:`rgba(240,250,200,${Math.random()*.08})`;g.fillRect(Math.random()*512,Math.random()*512,2+Math.random()*3,2);}
 for(let i=0;i<40;i++){g.fillStyle='rgba(236,200,90,.55)';g.fillRect(Math.random()*512,Math.random()*512,2,2);}

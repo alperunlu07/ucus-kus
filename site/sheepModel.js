@@ -2,42 +2,94 @@
 import * as THREE from 'three';
 export const WOOL={krem:'#f6f1e6',beyaz:'#fbf7ee',kahve:'#6e5646',kara:'#3a322d',pembe:'#efc4c8'};
 function rng(s){s=(s>>>0)||1;return()=>((s=Math.imul(s^s>>>15,1|s)+0x6d2b79f5|0,((s^s>>>14)>>>0)/4294967296));}
-// merge non-indexed geometries; colour per part; wool parts (c==null) get soft felt shading (darker undersides = crease between clumps)
+// One matte felt material for both scene-graph and instanced sheep. All grain is
+// sampled BEFORE instance/world transforms: it stays sewn onto walking wool.
+export function makeFeltMaterial(color='#ffffff',dark=false){
+ const m=new THREE.MeshLambertMaterial({color,vertexColors:true});
+ m.onBeforeCompile=s=>{
+  s.vertexShader='varying vec3 vFeltPosition;\n'+s.vertexShader;
+  s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFeltPosition = position;');
+  s.fragmentShader=`varying vec3 vFeltPosition;
+float feltHash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+float feltNoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+return mix(mix(mix(feltHash(i),feltHash(i+vec3(1,0,0)),f.x),mix(feltHash(i+vec3(0,1,0)),feltHash(i+vec3(1,1,0)),f.x),f.y),mix(mix(feltHash(i+vec3(0,0,1)),feltHash(i+vec3(1,0,1)),f.x),mix(feltHash(i+vec3(0,1,1)),feltHash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+`+s.fragmentShader;
+  s.fragmentShader=s.fragmentShader.replace('#include <lights_lambert_pars_fragment>',THREE.ShaderChunk.lights_lambert_pars_fragment.replace('saturate( dot( geometryNormal, directLight.direction ) )','clamp( (dot( geometryNormal, directLight.direction ) + '+(dark?'.16':'.32')+') / '+(dark?'1.16':'1.32')+', 0.0, 1.0 )'));
+  s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+vec3 fp = vFeltPosition * 155.0;
+// Fade the fibre octave when subpixel; no shimmer at flock distances.
+float fibreAA = 1.0-smoothstep(0.35,1.8,length(fwidth(fp)));
+float fibres = feltNoise(fp) - 0.5;
+float mottling = feltNoise(vFeltPosition*27.0)-0.5;
+diffuseColor.rgb *= 0.985 + mottling*0.065 + fibres*${dark?'0.07':'0.15'}*fibreAA;
+`);
+ };
+ m.customProgramCacheKey=()=> 'sheep-felt-v45-'+dark;
+ return m;
+}
+// Merge with baked clump contact occlusion and subtle warm/cool variation.
 export function merge(parts){let n=0;const gs=parts.map(([g,c,ctr])=>{const x=g.index?g.toNonIndexed():g;n+=x.attributes.position.count;return[x,c,ctr];});
  const P=new Float32Array(n*3),N=new Float32Array(n*3),Cc=new Float32Array(n*3);let o=0;
- for(const[g,c,ctr]of gs){const k=g.attributes.position.count;P.set(g.attributes.position.array,o*3);N.set(g.attributes.normal.array,o*3);const col=new THREE.Color(c||'#fff');const nn=g.attributes.normal.array;
-  for(let i=0;i<k;i++){if(c)col.toArray(Cc,(o+i)*3);else{const ny=nn[i*3+1];const v=.8+.2*Math.min(1,Math.max(0,ny*.6+.6));Cc[(o+i)*3]=v;Cc[(o+i)*3+1]=v*.985;Cc[(o+i)*3+2]=v*.96;}}o+=k;}
+ for(let j=0;j<gs.length;j++){const[g,c,ctr]=gs[j],k=g.attributes.position.count;P.set(g.attributes.position.array,o*3);N.set(g.attributes.normal.array,o*3);const col=new THREE.Color(c||'#fff'),nn=g.attributes.normal.array;
+  const tint=rng(j*37+19)(),out=new THREE.Vector3(...(ctr||[0,.5,0])).sub(new THREE.Vector3(0,.5,0));out.y*=.65;out.normalize();
+  for(let i=0;i<k;i++){if(c)col.toArray(Cc,(o+i)*3);else{const nx=nn[i*3],ny=nn[i*3+1],nz=nn[i*3+2];
+   const inward=Math.max(0,-(nx*out.x+ny*out.y+nz*out.z));
+   const v=.98-.105*Math.max(0,-ny)-.115*inward+(tint-.5)*.035;
+   Cc[(o+i)*3]=v;Cc[(o+i)*3+1]=v*(.992+tint*.006);Cc[(o+i)*3+2]=v*(.972+tint*.018);}}o+=k;}
  const m=new THREE.BufferGeometry();m.setAttribute('position',new THREE.BufferAttribute(P,3));m.setAttribute('normal',new THREE.BufferAttribute(N,3));m.setAttribute('color',new THREE.BufferAttribute(Cc,3));m.computeBoundingSphere();return m;}
-function lumpy(r,seed,det=2,amt=.14){const g=new THREE.IcosahedronGeometry(r,det);const p=g.attributes.position,R=rng(seed);const cache={};
- for(let i=0;i<p.count;i++){const k=p.getX(i).toFixed(3)+p.getY(i).toFixed(3)+p.getZ(i).toFixed(3);const f=cache[k]??(cache[k]=1-amt/2+R()*amt);p.setXYZ(i,p.getX(i)*f,p.getY(i)*f,p.getZ(i)*f);}
- const nn=g.attributes.normal;for(let i=0;i<p.count;i++){const v=new THREE.Vector3(p.getX(i),p.getY(i),p.getZ(i)).normalize();nn.setXYZ(i,v.x,v.y,v.z);}return g;}
+// Smooth domain-warped displacement rather than random per-vertex spikes.
+// IcosahedronGeometry is triangle soup: average normals across coincident
+// vertices after computing the displaced surface, otherwise seams stay faceted.
+function smoothNormals(g){g.computeVertexNormals();const p=g.attributes.position,n=g.attributes.normal,map=new Map(),keys=[];
+ for(let i=0;i<p.count;i++){const key=[p.getX(i),p.getY(i),p.getZ(i)].map(x=>Math.round(x*1e5)).join(',');keys.push(key);let v=map.get(key);if(!v){v=new THREE.Vector3();map.set(key,v);}v.x+=n.getX(i);v.y+=n.getY(i);v.z+=n.getZ(i);}
+ for(const v of map.values())v.normalize();for(let i=0;i<p.count;i++){const v=map.get(keys[i]);n.setXYZ(i,v.x,v.y,v.z);}return g;}
+function lumpy(r,seed,det=3,amt=.14){const g=new THREE.IcosahedronGeometry(r,det),p=g.attributes.position;
+ const ph=seed*1.731;for(let i=0;i<p.count;i++){const x=p.getX(i)/r,y=p.getY(i)/r,z=p.getZ(i)/r;
+  const wx=x+.19*Math.sin(y*3+ph),wy=y+.16*Math.sin(z*3.7-ph),wz=z+.18*Math.sin(x*3.2+ph);
+  const noise=.62*Math.sin(wx*3.1+ph)*Math.cos(wy*2.7-ph)*Math.sin(wz*2.9+1.3)+.27*Math.sin(wx*6.3+wy*3+ph)*Math.cos(wz*5.7-ph)+.11*Math.cos(wy*10.2+wz*8.1+ph);
+  const f=1+amt*noise;p.setXYZ(i,x*r*f,y*r*f,z*r*f);}
+ return smoothNormals(g);}
 // compact flattened bean: low core + ring of irregular clumps around the equator & underside, few small flat ones on top
 export const BODY={cy:.5,rx:.44,ry:.24,rz:.58};
-export function woolGeo(seed=1,max=16,lamb=false,legs=null,det=2,withTail=false){const R=rng(seed*977+3);const parts=[];const{cy,rx,ry,rz}=BODY;
+export function woolGeo(seed=1,max=16,lamb=false,legs=null,det=3,withTail=false){const R=rng(seed*977+3);const parts=[];const{cy,rx,ry,rz}=BODY;
  const core=lumpy(1,seed,det,.08);core.scale(rx,ry,rz);core.translate(0,cy,0);parts.push([core]);
  const n=Math.min(max,13+Math.floor(R()*4));
  for(let i=0;i<n;i++){const a=i/n*Math.PI*2+(R()-.5)*.35,up=-.45+R()*.85;const r=.13+R()*.11;const e=Math.sqrt(1-up*up*.45);
   if(Math.sin(a)>.8&&up>.1)continue;// keep the brow clear for the face
-  const g=lumpy(r,seed*31+i,det);g.scale(1,.72,1);g.translate(Math.cos(a)*rx*.86*e,cy+up*ry*.95,Math.sin(a)*rz*.86*e);parts.push([g]);}
- for(let i=0;i<4;i++){const g=lumpy(.17+R()*.05,seed*7+i,det);g.scale(1,.55,1);g.translate((R()-.5)*.36,cy+ry*.78,(i-1.5)*.24+(R()-.5)*.06);parts.push([g]);}
+  const g=lumpy(r,seed*31+i,det);g.scale(.88+R()*.28,.64+R()*.25,.88+R()*.3);g.rotateX((R()-.5)*.6);g.rotateZ((R()-.5)*.6);g.rotateY(R()*6.28);const ctr=[Math.cos(a)*rx*.8*e,cy+up*ry*.95,Math.sin(a)*rz*.8*e];g.translate(...ctr);parts.push([g,null,ctr]);}
+ for(let i=0;i<4;i++){const g=lumpy(.17+R()*.05,seed*7+i,det);g.scale(.9+R()*.25,.5+R()*.15,1);g.rotateY(R()*6.28);g.rotateZ((R()-.5)*.3);const ctr=[(R()-.5)*.36,cy+ry*.78,(i-1.5)*.24+(R()-.5)*.06];g.translate(...ctr);parts.push([g,null,ctr]);}
  const t=lumpy(.13,seed+5,det);t.scale(1.15,.7,1);t.translate(0,cy+.13,rz*.86);parts.push([t]);// forelock overhang
  if(withTail){const tl=lumpy(.1,9,det);tl.scale(1,.9,1.2);tl.translate(TAIL_POS[0],TAIL_POS[1],TAIL_POS[2]-.04);parts.push([tl]);}
  if(lamb){for(const[g]of parts){g.translate(0,-cy,0);g.scale(.95,1.05,.88);g.translate(0,cy,0);}}
  if(legs)for(const q of LEGS){const g=LEG.clone();g.translate(...q);parts.push([g,legs]);}
  return merge(parts);}
 export const TAIL_POS=[0,.56,-.66];
-export const tailGeo=(()=>{const g=lumpy(.1,9,2);g.scale(1,.9,1.2);g.translate(0,0,-.04);return merge([[g]]);})();
+export const tailGeo=(()=>{const g=lumpy(.1,9,3);g.scale(1,.9,1.2);g.translate(0,0,-.04);return merge([[g]]);})();
 // short sturdy legs, pivot at hip
-export const LEG=(()=>{const g=new THREE.CylinderGeometry(.068,.056,.3,8);g.translate(0,-.15,0);return g;})();
+export const LEG=(()=>{const g=new THREE.CylinderGeometry(.066,.052,.3,12,3);const p=g.attributes.position;
+ for(let i=0;i<p.count;i++){const y=p.getY(i),f=1+.035*Math.sin(y*21);p.setX(i,p.getX(i)*f);p.setZ(i,p.getZ(i)*f);}g.translate(0,-.15,0);return smoothNormals(g);})();
 export const LEGS=[[.2,.3,.3],[-.2,.3,.3],[.2,.3,-.3],[-.2,.3,-.3]];// FL FR BL BR
-export const legGeo=(c='#2d2724')=>merge([[LEG.clone(),c]]);
+export const legGeo=(c='#2d2724')=>{const hoof=lumpy(1,8,2,.025);hoof.scale(.057,.037,.067);hoof.translate(0,-.275,.012);return merge([[LEG.clone(),c],[hoof,'#211e1c']]);};
 // head: pivot at neck, pushed forward so the black muzzle peeks out past the wool from above
 export const HEAD_PIVOT=[0,.55,.5];
 export function headGeo(face='#2d2724'){const parts=[];
- const h=lumpy(1,77,2,.06);h.scale(.15,.15,.21);h.translate(0,-.02,.22);parts.push([h,face]);
- const mz=new THREE.IcosahedronGeometry(1,2);mz.scale(.105,.095,.1);mz.translate(0,-.06,.38);parts.push([mz,face]);
- for(const s of[-1,1]){const e=new THREE.IcosahedronGeometry(1,2);e.scale(.13,.035,.065);e.rotateZ(s*-.4);e.translate(s*.17,.06,.16);parts.push([e,face]);
-  const ey=new THREE.IcosahedronGeometry(.03,1);ey.translate(s*.08,.05,.34);parts.push([ey,'#f3ead8']);}
+ const oval=(sc,pos,c,seed=77)=>{const g=lumpy(1,seed,3,.045);g.scale(...sc);g.translate(...pos);parts.push([g,c]);};
+ // Brow, cheek/jaw and two softly divided muzzle pads, not a single blob.
+ oval([.143,.152,.195],[0,-.015,.214],face);
+ oval([.109,.101,.139],[0,-.068,.32],face,42);
+ for(const side of[-1,1]){
+  oval([.059,.06,.075],[side*.047,-.06,.393],face,32);
+  // Flattened teardrop ear with a recessed warm inner felt panel.
+  const e=lumpy(1,51,3,.06),p=e.attributes.position;
+  for(let i=0;i<p.count;i++){const x=p.getX(i),t=(x+1)*.5;p.setXYZ(i,x*.143,p.getY(i)*.032*(.65+.35*Math.sin(t*Math.PI)),p.getZ(i)*.068*(.55+.45*Math.sin(t*Math.PI)));}
+  smoothNormals(e);e.rotateZ(-side*.3);e.translate(side*.19,.055,.17);parts.push([e,face]);
+  oval([.081,.009,.033],[side*.205,.079,.176],'#463c36',12);
+  // Socket rims make the pale eyes sit within, rather than on top of, the face.
+  oval([.034,.036,.026],[side*.091,.045,.337],'#201d1b',2);
+  oval([.021,.024,.016],[side*.094,.049,.354],'#e9dfc9',4);
+  oval([.009,.007,.004],[side*.052,-.033,.457],'#171614',6);
+ }
+ oval([.005,.027,.003],[0,-.08,.46],'#1d1a18',7);
  return merge(parts);}
 export function legsGeo(face='#2d2724'){return merge(LEGS.map(p=>{const g=LEG.clone();g.translate(...p);return[g,face];}));}
 const _hg={};export function sharedHead(face){return _hg[face]||(_hg[face]=headGeo(face));}
@@ -69,7 +121,7 @@ export function solvePose(u,state,dt,speed=1){u.t+=dt;const t=u.t,s=u.seed;const
  return P;}
 // ---- workshop sheep (scene graph)
 export function createSheep(o={}){const seed=o.seed??1,face=o.faceColor||'#2d2724';
- const woolMat=new THREE.MeshLambertMaterial({color:o.woolColor||WOOL.krem,vertexColors:true});const dark=new THREE.MeshLambertMaterial({vertexColors:true});
+ const woolMat=makeFeltMaterial(o.woolColor||WOOL.krem);const dark=makeFeltMaterial('#ffffff',true);
  const g=new THREE.Group(),body=new THREE.Group();g.add(body);const fluff=new THREE.Group();body.add(fluff);
  const wool=new THREE.Mesh(sharedWool(seed%6,!!o.isLamb),woolMat);fluff.add(wool);
  const tail=new THREE.Mesh(tailGeo,woolMat);tail.position.set(...TAIL_POS);fluff.add(tail);
