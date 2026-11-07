@@ -14,7 +14,7 @@ float feltHash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.545
 float feltNoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
 return mix(mix(mix(feltHash(i),feltHash(i+vec3(1,0,0)),f.x),mix(feltHash(i+vec3(0,1,0)),feltHash(i+vec3(1,1,0)),f.x),f.y),mix(mix(feltHash(i+vec3(0,0,1)),feltHash(i+vec3(1,0,1)),f.x),mix(feltHash(i+vec3(0,1,1)),feltHash(i+vec3(1,1,1)),f.x),f.y),f.z);}
 `+s.fragmentShader;
-  s.fragmentShader=s.fragmentShader.replace('#include <lights_lambert_pars_fragment>',THREE.ShaderChunk.lights_lambert_pars_fragment.replace('saturate( dot( geometryNormal, directLight.direction ) )','clamp( (dot( geometryNormal, directLight.direction ) + '+(dark?'.16':'.32')+') / '+(dark?'1.16':'1.32')+', 0.0, 1.0 )'));
+  s.fragmentShader=s.fragmentShader.replace('#include <lights_lambert_pars_fragment>',THREE.ShaderChunk.lights_lambert_pars_fragment.replace('saturate( dot( geometryNormal, directLight.direction ) )','clamp( (dot( geometryNormal, directLight.direction ) + '+(dark?'.16':'.5')+') / '+(dark?'1.16':'1.5')+', 0.0, 1.0 )'));
   s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
 vec3 fp = vFeltPosition * 155.0;
 // Fade the fibre octave when subpixel; no shimmer at flock distances.
@@ -24,15 +24,15 @@ float mottling = feltNoise(vFeltPosition*27.0)-0.5;
 diffuseColor.rgb *= 0.985 + mottling*0.065 + fibres*${dark?'0.07':'0.15'}*fibreAA;
 `);
  };
- m.customProgramCacheKey=()=> 'sheep-felt-v45-'+dark;
+ m.customProgramCacheKey=()=> 'sheep-felt-v46-'+dark;
  return m;
 }
 // Merge with baked clump contact occlusion and subtle warm/cool variation.
 export function merge(parts){let n=0;const gs=parts.map(([g,c,ctr])=>{const x=g.index?g.toNonIndexed():g;n+=x.attributes.position.count;return[x,c,ctr];});
  const P=new Float32Array(n*3),N=new Float32Array(n*3),Cc=new Float32Array(n*3);let o=0;
- for(let j=0;j<gs.length;j++){const[g,c,ctr]=gs[j],k=g.attributes.position.count;P.set(g.attributes.position.array,o*3);N.set(g.attributes.normal.array,o*3);const col=new THREE.Color(c||'#fff'),nn=g.attributes.normal.array;
+ for(let j=0;j<gs.length;j++){const[g,c,ctr]=gs[j],k=g.attributes.position.count;P.set(g.attributes.position.array,o*3);N.set(g.attributes.normal.array,o*3);const col=new THREE.Color(c&&c!=='attr'?c:'#fff'),nn=g.attributes.normal.array;
   const tint=rng(j*37+19)(),out=new THREE.Vector3(...(ctr||[0,.5,0])).sub(new THREE.Vector3(0,.5,0));out.y*=.65;out.normalize();
-  for(let i=0;i<k;i++){if(c)col.toArray(Cc,(o+i)*3);else{const nx=nn[i*3],ny=nn[i*3+1],nz=nn[i*3+2];
+  const ca=c==='attr'?g.attributes.color.array:null;for(let i=0;i<k;i++){if(ca){Cc.set(ca.subarray(i*3,i*3+3),(o+i)*3);}else if(c)col.toArray(Cc,(o+i)*3);else{const nx=nn[i*3],ny=nn[i*3+1],nz=nn[i*3+2];
    const inward=Math.max(0,-(nx*out.x+ny*out.y+nz*out.z));
    const v=.98-.105*Math.max(0,-ny)-.115*inward+(tint-.5)*.035;
    Cc[(o+i)*3]=v;Cc[(o+i)*3+1]=v*(.992+tint*.006);Cc[(o+i)*3+2]=v*(.972+tint*.018);}}o+=k;}
@@ -51,17 +51,48 @@ function lumpy(r,seed,det=3,amt=.14){const g=new THREE.IcosahedronGeometry(r,det
  return smoothNormals(g);}
 // compact flattened bean: low core + ring of irregular clumps around the equator & underside, few small flat ones on top
 export const BODY={cy:.5,rx:.44,ry:.24,rz:.58};
-export function woolGeo(seed=1,max=16,lamb=false,legs=null,det=3,withTail=false){const R=rng(seed*977+3);const parts=[];const{cy,rx,ry,rz}=BODY;
- const core=lumpy(1,seed,det,.08);core.scale(rx,ry,rz);core.translate(0,cy,0);parts.push([core]);
+// FUSED wool: one watertight star-shaped hull. Clumps are ellipsoid SDF blobs
+// combined with a smooth-min, so they become hills/valleys of ONE surface (no
+// sphere outlines or intersection rings). Rays from the body centre are solved
+// by bisection, normals are averaged on the shared index, and valley AO is baked
+// from discrete mean curvature into vertex colours.
+function smin(a,b,k){const h=Math.max(k-Math.abs(a-b),0)/k;return Math.min(a,b)-h*h*k*.25;}
+function blobSdf(bl,x,y,z){let d=1e9;for(const q of bl){const dx=(x-q[0])/q[3],dy=(y-q[1])/q[4],dz=(z-q[2])/q[5];const m=Math.min(q[3],q[4],q[5]);d=smin(d,(Math.sqrt(dx*dx+dy*dy+dz*dz)-1)*m,q[6]);}return d;}
+function fbm(x,y,z,ph){const wx=x+.3*Math.sin(y*7+ph),wy=y+.3*Math.sin(z*6-ph),wz=z+.3*Math.sin(x*7.5+ph);
+ return .55*Math.sin(wx*13+ph)*Math.cos(wy*11-ph)*Math.sin(wz*12+1.3)+.3*Math.sin(wx*23+wy*9+ph)*Math.cos(wz*21-ph)+.15*Math.cos(wy*41+wz*33+ph);}
+export function woolGeo(seed=1,max=16,lamb=false,legs=null,det=3,withTail=false){const R=rng(seed*977+3);const{cy,rx,ry,rz}=BODY;const bl=[];
+ const K=.075;bl.push([0,cy,0,rx*.93,ry*.95,rz*.93,K]);
  const n=Math.min(max,13+Math.floor(R()*4));
  for(let i=0;i<n;i++){const a=i/n*Math.PI*2+(R()-.5)*.35,up=-.45+R()*.85;const r=.13+R()*.11;const e=Math.sqrt(1-up*up*.45);
-  if(Math.sin(a)>.8&&up>.1)continue;// keep the brow clear for the face
-  const g=lumpy(r,seed*31+i,det);g.scale(.88+R()*.28,.64+R()*.25,.88+R()*.3);g.rotateX((R()-.5)*.6);g.rotateZ((R()-.5)*.6);g.rotateY(R()*6.28);const ctr=[Math.cos(a)*rx*.8*e,cy+up*ry*.95,Math.sin(a)*rz*.8*e];g.translate(...ctr);parts.push([g,null,ctr]);}
- for(let i=0;i<4;i++){const g=lumpy(.17+R()*.05,seed*7+i,det);g.scale(.9+R()*.25,.5+R()*.15,1);g.rotateY(R()*6.28);g.rotateZ((R()-.5)*.3);const ctr=[(R()-.5)*.36,cy+ry*.78,(i-1.5)*.24+(R()-.5)*.06];g.translate(...ctr);parts.push([g,null,ctr]);}
- const t=lumpy(.13,seed+5,det);t.scale(1.15,.7,1);t.translate(0,cy+.13,rz*.86);parts.push([t]);// forelock overhang
- if(withTail){const tl=lumpy(.1,9,det);tl.scale(1,.9,1.2);tl.translate(TAIL_POS[0],TAIL_POS[1],TAIL_POS[2]-.04);parts.push([tl]);}
- if(lamb){for(const[g]of parts){g.translate(0,-cy,0);g.scale(.95,1.05,.88);g.translate(0,cy,0);}}
- if(legs)for(const q of LEGS){const g=LEG.clone();g.translate(...q);parts.push([g,legs]);}
+  if(Math.sin(a)>.8&&up>.1)continue;
+  bl.push([Math.cos(a)*rx*.8*e,cy+up*ry*.95,Math.sin(a)*rz*.8*e,r*(.88+R()*.28),r*(.64+R()*.25),r*(.88+R()*.3),K]);}
+ for(let i=0;i<4;i++){const r=.17+R()*.05;bl.push([(R()-.5)*.36,cy+ry*.62,(i-1.5)*.24+(R()-.5)*.06,r*(.9+R()*.25),r*(.5+R()*.15),r,K]);}
+ for(let i=0;i<14;i++){const a=R()*6.28,u=.25+R()*.6,r=.09+R()*.06;const e=Math.sqrt(1-u*u);const x=Math.cos(a)*rx*.78*e,z=Math.sin(a)*rz*.8*e;if(z>rz*.55&&Math.abs(x)<.16)continue;bl.push([x,cy+u*ry*.95,z,r,r*.75,r,K]);}
+ bl.push([0,cy+.12,rz*.84,.15,.095,.13,.09]);// forelock = a front hill of the same hull
+ if(withTail)bl.push([TAIL_POS[0],TAIL_POS[1],TAIL_POS[2]-.02,.1,.09,.12,.07]);
+ if(lamb)for(const q of bl){q[0]*=.95;q[1]=(q[1]-cy)*1.05+cy;q[2]*=.88;q[3]*=.95;q[4]*=1.05;q[5]*=.88;}
+ const res=Math.max(10,det>=3?44:det>=2?22:16);
+ const g0=new THREE.IcosahedronGeometry(1,res);const pp=g0.attributes.position;const vmap=new Map(),idx=[],V=[];
+ for(let i=0;i<pp.count;i++){const k=[pp.getX(i),pp.getY(i),pp.getZ(i)].map(x=>Math.round(x*1e5)).join(',');let j=vmap.get(k);if(j===undefined){j=V.length/3;vmap.set(k,j);V.push(pp.getX(i),pp.getY(i),pp.getZ(i));}idx.push(j);}
+ const puffs=[];{const Q=rng(seed*131+7);for(let i=0;i<260;i++){const u=Q()*2-1,a=Q()*6.28,w=Math.sqrt(1-u*u);const sg=.004+Q()*.007;puffs.push([w*Math.cos(a),u,w*Math.sin(a),.03+Q()*.03,sg]);}}
+ const nv=V.length/3,P=new Float32Array(nv*3),ph=seed*1.37;
+ for(let j=0;j<nv;j++){let dx=V[j*3],dy=V[j*3+1],dz=V[j*3+2];let lo=0,hi=1.3;
+  for(let it=0;it<26;it++){const m=(lo+hi)/2;if(blobSdf(bl,dx*m,cy+dy*m,dz*m)<0)lo=m;else hi=m;}
+  let r=lo,bump=0;for(const q of puffs){const dd=dx*q[0]+dy*q[1]+dz*q[2];if(dd>.9){const a2=(1-dd)*2;bump+=q[3]*Math.exp(-a2/q[4]);}}r*=1+Math.min(.075,bump)+.006*fbm(dx,dy,dz,ph);P[j*3]=dx*r;P[j*3+1]=cy+dy*r;P[j*3+2]=dz*r;}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setIndex(idx);g.computeVertexNormals();
+ // curvature: offset of vertex from its neighbour average along the normal
+ const nb=new Float32Array(nv*3),cnt=new Float32Array(nv);for(let t=0;t<idx.length;t+=3)for(let e=0;e<3;e++){const a=idx[t+e],b=idx[t+(e+1)%3];for(let c=0;c<3;c++){nb[a*3+c]+=P[b*3+c];nb[b*3+c]+=P[a*3+c];}cnt[a]++;cnt[b]++;}
+ const N=g.attributes.normal.array,cv=new Float32Array(nv);
+ for(let j=0;j<nv;j++){let d=0;for(let c=0;c<3;c++)d+=(P[j*3+c]-nb[j*3+c]/cnt[j])*N[j*3+c];cv[j]=d;}
+ // blur curvature twice so AO reads as soft folds
+ for(let pass=0;pass<3;pass++){const s2=new Float32Array(nv),c2=new Float32Array(nv);for(let t=0;t<idx.length;t+=3)for(let e=0;e<3;e++){const a=idx[t+e],b=idx[t+(e+1)%3];s2[a]+=cv[b];s2[b]+=cv[a];c2[a]++;c2[b]++;}for(let j=0;j<nv;j++)cv[j]=cv[j]*.4+.6*s2[j]/c2[j];}
+ const sc=1/(.004*44/res);const C=new Float32Array(nv*3);
+ for(let j=0;j<nv;j++){const k=Math.max(-1,Math.min(1,cv[j]*sc));const ny=N[j*3+1];
+  const v=.955+.045*Math.max(0,k)-.17*Math.max(0,-k)-.09*Math.max(0,-ny);
+  C[j*3]=v*(1+.012*Math.max(0,k));C[j*3+1]=v*.99;C[j*3+2]=v*(.965-.02*Math.max(0,-k));}
+ g.setAttribute('color',new THREE.BufferAttribute(C,3));
+ const parts=[[g.toNonIndexed(),'attr']];
+ if(legs)for(const q of LEGS){const l=LEG.clone();l.translate(...q);parts.push([l,legs]);}
  return merge(parts);}
 export const TAIL_POS=[0,.56,-.66];
 export const tailGeo=(()=>{const g=lumpy(.1,9,3);g.scale(1,.9,1.2);g.translate(0,0,-.04);return merge([[g]]);})();
