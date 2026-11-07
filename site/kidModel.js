@@ -18,7 +18,7 @@ export function createKid(options={}){const id=options.seed??0,p=palette[((id%pa
  mesh(rig,new THREE.CylinderGeometry(.10,.11,.15,7),skin,0,1.46,0);
  const arms=[limb(rig,-.295,1.36,.27,.25,.082,shirt,skin),limb(rig,.295,1.36,.27,.25,.082,shirt,skin)];
  const legs=[limb(rig,-.14,.70,.32,.31,.094,pants,skin,true),limb(rig,.14,.70,.32,.31,.094,pants,skin,true)];
- const d={rig,head,body,arms,legs,id,p,skin,shirt,pants,hair,phase:id*1.7};root.userData.kid=d;decorateKid(root,d);root.scale.setScalar(options.scale??1.16);return root;
+ const d={rig,head,body,arms,legs,id,p,skin,shirt,pants,hair,phase:id*1.7};root.userData.kid=d;decorateKid(root,d);packPaperDetails(d.head);packPaperDetails(rig,new Set([body]));for(const L of legs)packPaperDetails(L.tip);root.scale.setScalar(options.scale??1.16);return root;
 }
 function decorateKid(k,d){
  // 02 · layered cut-paper face: tiny eyes, cheeks, nose, open friendly smile.
@@ -42,6 +42,30 @@ function decorateKid(k,d){
  for(const side of [-1,1])rod(d.rig,edge,[side*.18,.87,.16],[side*.20,.98,.14],.007);
  for(const A of d.arms)mesh(A.pivot,new THREE.CylinderGeometry(.083,.084,.035,7),edge,0,-A.upper+.012,0);
  for(const L of d.legs)mesh(L.pivot,new THREE.CylinderGeometry(.092,.093,.028,7),d.pants,0,-L.upper+.01,0);
+ // 11 · asymmetric brows, cream eye catches and sparse freckles.
+ const brow=mat('#665047');
+ for(const side of [-1,1]){
+ rod(d.head,brow,[side*.108-.031,.106,.255],[side*.108+.031,.111+(d.id%2?side*.009:0),.255],.008);
+ oval(d.head,cream,side*.108-.006,.047,.280,.007,.009,.004,0);
+ if(d.id%2===0)for(let f=0;f<3;f++)oval(d.head,brow,side*(.145+f*.025),-.025+(f%2)*.013,.252-f*.008,.006,.006,.003,0);
+ }
+ // 12 · a scalloped nape and paper sideburns make rear/side silhouettes intentional.
+ for(const side of [-1,1]){oval(d.head,d.hair,side*.281,.075,.04,.055,.13,.085,1);}
+ for(let j=0;j<5;j++){const a=(j-2)*.40;oval(d.head,d.hair,Math.sin(a)*.265,-.005+Math.abs(j-2)*.015,-Math.cos(a)*.235,.088,.074,.055,1);}
+ const part=mat(new THREE.Color(d.p[3]).multiplyScalar(1.23));
+ const partCurve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(-.08,.332,.02),new THREE.Vector3(-.10,.31,.15),new THREE.Vector3(-.14,.242,.232));
+ mesh(d.head,new THREE.TubeGeometry(partCurve,8,.006,3,false),part);
+ // 13 · shirt placket, tiny buttons, back yoke and patched pocket.
+ box(d.rig,edge,0,1.16,.169,.018,.29,.008);
+ for(let j=0;j<3;j++)oval(d.rig,cream,0,1.29-j*.085,.179,.012,.012,.006,0);
+ rod(d.rig,edge,[-.19,1.27,-.154],[.19,1.27,-.154],.006);
+ for(const side of [-1,1])rod(d.rig,edge,[side*.16,.91,-.183],[side*.20,1.03,-.174],.005);
+ if(d.id%2){const patch=box(d.rig,cream,-.12,1.08,.175,.075,.07,.009);patch.rotation.z=.15;}
+ // 14 · felt ankle cuffs, raised tongues and cream cross-laces on paper shoes.
+ for(const L of d.legs){mesh(L.joint,new THREE.CylinderGeometry(.075,.076,.072,7),cream,0,-L.lower+.033,0);
+ box(L.tip,d.pants,0,.060,-.015,.080,.024,.105);
+ for(let j=0;j<2;j++)rod(L.tip,cream,[-.037,.074,.002+j*.036],[.037,.074,.022+j*.036],.007);
+ }
  // POLISH DETAILS
 }
 export function updateKid(k,activity='idle',dt=0,time){const d=k.userData.kid;if(!d)return;d.time=time??((d.time||0)+dt);const t=d.time,q=t*6.3+d.phase;let run=activity==='run'||activity==='tag',walk=run||activity==='walk'||activity==='ring';
@@ -58,6 +82,22 @@ export function updateKid(k,activity='idle',dt=0,time){const d=k.userData.kid;if
  if(activity==='ring'){d.rig.rotation.z=.035*Math.sin(q);for(let i=0;i<2;i++){d.legs[i].pivot.rotation.x=.08;d.legs[i].pivot.rotation.z=.17*Math.sin(q+i*Math.PI);d.legs[i].joint.rotation.x=.12+Math.max(0,Math.sin(q+i*Math.PI))*.2;}}
  // 08 · planted stance / lifted recovery, stride tied to chase path speed.
  if(run){d.rig.position.y=-.07+.025*Math.abs(Math.sin(q));d.rig.rotation.z=0;const stride=(d.pathSpeed||.95)/(4*1.16);for(let i=0;i<2;i++){const L=d.legs[i],phase=((q+i*Math.PI)%TAU+TAU)%TAU,stance=phase<Math.PI,u=(phase%Math.PI)/Math.PI,z=(stance?1-2*u:-1+2*u)*stride,y=.065-d.rig.position.y+(stance?0:Math.sin(u*Math.PI)*.15);aimArm(L,new THREE.Vector3(L.pivot.position.x,y,z));L.tip.quaternion.copy(L.pivot.quaternion).multiply(L.joint.quaternion).invert();}d.head.rotation.y+=d.id%2?-.18:.16;}
+ // 15 · ball anticipation, support-foot weight and a real palm-to-palm clap.
+ if(activity==='ball'){
+ d.head.rotation.x=.14;d.head.rotation.y+=Math.sin(t*1.96)*.12;
+ const kick=d.ballKick||0;const foot=d.ballRole===2?0:1;
+ for(let j=0;j<2;j++)if(d.ballRole===1||j!==foot){d.legs[j].pivot.rotation.x=0;d.legs[j].joint.rotation.x=.02;}
+ if(d.ballRole===1){const gap=.065+.10*(.5+.5*Math.sin(t*5));for(let j=0;j<2;j++)aimArm(d.arms[j],new THREE.Vector3((j?1:-1)*gap,1.19,.38));d.rig.position.y+=.012*Math.sin(t*5);}
+ else{d.rig.rotation.z=(foot?1:-1)*kick*.055;d.head.rotation.x+=kick*.045;}
+ }
+ // 16 · soft synchronized circle-dance, planted soles and lifted side recovery.
+ if(activity==='ring'){
+ const beat=t*4.8+(d.id%2)*Math.PI;d.rig.rotation.z=.022*Math.sin(beat);d.rig.position.y=.012*Math.sin(beat*2);
+ d.head.rotation.y=.16*Math.sin(t*1.3+d.phase);d.head.rotation.z=.045*Math.sin(beat);
+ for(let j=0;j<2;j++){const L=d.legs[j],phase=beat+j*Math.PI,lift=Math.max(0,Math.sin(phase))*.075;
+ aimArm(L,new THREE.Vector3(L.pivot.position.x+.085*Math.cos(phase),.065-d.rig.position.y+lift,.025));
+ L.tip.quaternion.copy(L.pivot.quaternion).multiply(L.joint.quaternion).invert();}
+ }
  // MOTION POLISH
 }
 function ball(){const g=new THREE.Group(),geo=new THREE.IcosahedronGeometry(.24,1),p=geo.attributes.position,colors=[];const shades=['#edb85b','#f7e9ca','#629ca6'];for(let i=0;i<p.count;i++){const c=new THREE.Color(shades[Math.floor(i/3)%3]);colors.push(c.r,c.g,c.b);}geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));const m=mat('#ffffff');m.vertexColors=true;mesh(g,geo,m);return g;}
@@ -66,32 +106,50 @@ export function createKidActivityGroup(activity='ball',options={}){const g=new T
  if(activity==='kite'){
  const kite=new THREE.Group(),corners=[[0,.8,0],[.55,0,0],[0,-.65,0],[-.55,0,0]],colors=['#e7a052','#e7c567','#76a4a4','#d28066'];
  for(let i=0;i<4;i++){const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,.055),new THREE.Vector3(...corners[i]),new THREE.Vector3(...corners[(i+1)%4])]);geo.computeVertexNormals();const m=mat(colors[i]);m.side=THREE.DoubleSide;mesh(kite,geo,m);}
- const bamboo=mat('#eedbb5');rod(kite,bamboo,[0,.8,.016],[0,-.65,.016],.012);rod(kite,bamboo,[-.55,0,.016],[.55,0,.016],.010);
+ const bamboo=mat('#eedbb5');for(let i=0;i<4;i++)rod(kite,bamboo,corners[i],corners[(i+1)%4],.006);rod(kite,bamboo,[0,.8,.016],[0,-.65,.016],.012);rod(kite,bamboo,[-.55,0,.016],[.55,0,.016],.010);
  const tail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({length:20},(_,i)=>new THREE.Vector3(0,-.65-i*.065,0))),new THREE.LineBasicMaterial({color:'#9e7962'}));kite.add(tail);d.tail=tail;d.bows=[];
  for(let i=0;i<4;i++){const bow=new THREE.Group();for(const sign of [-1,1]){const shape=new THREE.Shape();shape.moveTo(0,0);shape.lineTo(sign*.105,.06);shape.lineTo(sign*.105,-.06);shape.closePath();const m=mat(colors[i]);m.side=THREE.DoubleSide;mesh(bow,new THREE.ShapeGeometry(shape),m);}kite.add(bow);d.bows.push(bow);}
  props.add(kite);d.kite=kite;const geo=new THREE.BufferGeometry().setFromPoints(Array.from({length:25},()=>new THREE.Vector3()));d.string=new THREE.Line(geo,new THREE.LineBasicMaterial({color:'#79654a'}));props.add(d.string);
- d.spool=new THREE.Group();const reel=mesh(d.spool,new THREE.CylinderGeometry(.075,.075,.17,8),mat('#c99461'));reel.rotation.z=Math.PI/2;for(const x of [-.09,.09]){const end=mesh(d.spool,new THREE.CylinderGeometry(.095,.095,.025,8),bamboo,x,0,0);end.rotation.z=Math.PI/2;}props.add(d.spool);
+ d.spool=new THREE.Group();const reel=mesh(d.spool,new THREE.CylinderGeometry(.075,.075,.17,8),mat('#c99461'));reel.rotation.z=Math.PI/2;for(const x of [-.09,.09]){const end=mesh(d.spool,new THREE.CylinderGeometry(.095,.095,.025,8),bamboo,x,0,0);end.rotation.z=Math.PI/2;}const winding=mesh(d.spool,new THREE.CylinderGeometry(.079,.079,.12,12),mat('#eee0be'));winding.rotation.z=Math.PI/2;props.add(d.spool);
  }
  updateKidActivityGroup(g,0,0);return g;
 }
 export function updateKidActivityGroup(g,dt,time){const d=g.userData.activity;if(!d)return;d.time=time??d.time+dt;const t=d.time;
  d.kids.forEach((k,i)=>{if(d.activity==='ring'){const a=i/d.kids.length*TAU+t*.3;k.position.set(Math.sin(a)*1.62,0,Math.cos(a)*1.62);k.rotation.y=a+Math.PI;}
- else if(d.activity==='tag'){const a=t*.6+i*1.3;k.userData.kid.pathSpeed=.6*Math.hypot(Math.cos(a)*1.9,Math.sin(a)*1.2);k.position.set(Math.sin(a)*1.9,0,Math.cos(a)*1.2);k.rotation.y=Math.atan2(Math.cos(a)*1.9,-Math.sin(a)*1.2);}
+ else if(d.activity==='tag'){const a=t*.6+i*.95;k.userData.kid.pathSpeed=.6*Math.hypot(Math.cos(a)*1.9,Math.sin(a)*1.2);k.position.set(Math.sin(a)*1.9,0,Math.cos(a)*1.2);k.rotation.y=Math.atan2(Math.cos(a)*1.9,-Math.sin(a)*1.2);}
  else if(d.activity==='ball'){k.position.set(i===1?.8:(i-1)*1.5,0,i===1?1.65:0);k.rotation.y=i===0?1.1:i===2?-1.1:Math.PI;const contact=((t-(i===2?1.6:0))%3.2+3.2)%3.2;k.userData.kid.ballKick=i===1?0:Math.exp(-Math.pow(Math.min(contact,3.2-contact)/.19,2));k.userData.kid.ballRole=i;}
  else{k.position.set(0,0,0);k.rotation.y=-.3;}
  updateKid(k,d.activity==='tag'?'run':d.activity,dt,t);});
- if(d.ball){const phase=((t%3.2)+3.2)%3.2/1.6,u=phase%1;d.ball.position.set((phase<1?-1:1)*(1.04-2.08*u),.24+Math.sin(u*Math.PI)*.22,.20);d.ball.rotation.set(t*1.8,0,-t*2.8);}
+ if(d.ball){const phase=((t%3.2)+3.2)%3.2/1.6,u=phase%1;d.ball.position.set((phase<1?-1:1)*(1.04-2.08*u),.24+Math.sin(u*Math.PI)*.14,.20);d.ball.rotation.set(t*1.8,0,-t*2.8);}
  if(d.kite){
- d.kite.position.set(1.5+Math.sin(t)*.2,4.4+Math.sin(t*1.3)*.17,-.5);d.kite.rotation.set(.08*Math.sin(t),.2,.18*Math.sin(t*1.3));
- const kid=d.kids[0],rig=kid.userData.kid;aimArm(rig.arms[1],new THREE.Vector3(.27,1.65+Math.sin(t*1.3)*.05,.40));aimArm(rig.arms[0],new THREE.Vector3(-.06,1.3,.40));rig.head.rotation.x=-.14;
+ d.kite.position.set(1.5+Math.sin(t)*.2,4.4+Math.sin(t*1.3)*.17,-.5);d.kite.rotation.set(-.26+.11*Math.sin(t),.2+.10*Math.sin(t*.8),.18*Math.sin(t*1.3));
+ const kid=d.kids[0],rig=kid.userData.kid;aimArm(rig.arms[1],new THREE.Vector3(.27,1.65+Math.sin(t*1.3)*.05,.40));aimArm(rig.arms[0],new THREE.Vector3(-.06,1.3,.40));rig.head.rotation.x=-.22;rig.head.rotation.y=.18+.04*Math.sin(t);d.spool.rotation.set(0,0,.15*Math.sin(t*1.3));
  g.updateMatrixWorld(true);const h=g.worldToLocal(rig.arms[1].tip.getWorldPosition(new THREE.Vector3())),end=d.kite.position.clone(),control=h.clone().lerp(end,.5).add(new THREE.Vector3(.06,-.24,.18)),curve=new THREE.QuadraticBezierCurve3(h,control,end),p=d.string.geometry.attributes.position;
  for(let i=0;i<p.count;i++){const v=curve.getPoint(i/(p.count-1));p.setXYZ(i,v.x,v.y,v.z);}p.needsUpdate=true;d.string.geometry.computeBoundingSphere();d.spool.position.copy(g.worldToLocal(rig.arms[0].tip.getWorldPosition(new THREE.Vector3())));
- const tp=d.tail.geometry.attributes.position;for(let i=0;i<tp.count;i++){const u=i/(tp.count-1);tp.setXYZ(i,Math.sin(t*3-u*5)*u*.18,-.65-u*1.25,Math.sin(t*2-u*3)*u*.08);}tp.needsUpdate=true;d.tail.geometry.computeBoundingSphere();d.bows.forEach((bow,i)=>{const u=(i+1)/4;bow.position.set(Math.sin(t*3-u*5)*u*.18,-.65-u*1.25,Math.sin(t*2-u*3)*u*.08);bow.rotation.z=Math.cos(t*3-u*5)*.18;});
+ const tp=d.tail.geometry.attributes.position;for(let i=0;i<tp.count;i++){const u=i/(tp.count-1);tp.setXYZ(i,Math.sin(t*3-u*5)*u*.18,-.65-u*1.25,Math.sin(t*2-u*3)*u*.08);}tp.needsUpdate=true;d.tail.geometry.computeBoundingSphere();d.bows.forEach((bow,i)=>{const u=(i+1)/4;bow.position.set(Math.sin(t*3-u*5)*u*.18,-.65-u*1.25,Math.sin(t*2-u*3)*u*.08);bow.rotation.z=Math.cos(t*3-u*5)*.24;bow.rotation.y=Math.sin(t*3-u*5)*.35;});
  }
  // 07 · two-bone arm solve: neighboring paper hands really meet while dancing.
  if(d.activity==='ring'){g.updateMatrixWorld(true);d.kids.forEach((k,i)=>{for(let arm=0;arm<2;arm++){const next=d.kids[(i+(arm===0?1:-1)+d.kids.length)%d.kids.length],target=k.position.clone().add(next.position).multiplyScalar(.5);target.y=1.43+Math.sin(t*2)*.025;g.localToWorld(target);k.userData.kid.rig.worldToLocal(target);aimArm(k.userData.kid.arms[arm],target);}});}
+ // 17 · chaser reaches into the turn; leader checks back without breaking the gait.
+ if(d.activity==='tag')d.kids.forEach((kid,i)=>{const r=kid.userData.kid,turn=Math.sin(t*.6+i*.95),reach=.5+.5*Math.sin(t*1.8);
+ r.body.rotation.x=.12;r.head.rotation.y=i?-.45:-.18;r.head.rotation.z=turn*.045;
+ if(i===0){r.arms[1].pivot.rotation.x=-.85-reach*.35;r.arms[1].joint.rotation.x=-.22-reach*.18;r.arms[1].pivot.rotation.z=-.12;}
+ });
  // GROUP POLISH
 }
 
 // Analytic local-space arm IK, useful to consumers for grasping props too.
 export function aimArm(arm,target){const shoulder=arm.pivot.position,delta=target.clone().sub(shoulder),distance=Math.min(delta.length(),arm.upper+arm.lower-.004);const dir=delta.normalize(),a=(arm.upper*arm.upper-arm.lower*arm.lower+distance*distance)/(2*distance);const bend=new THREE.Vector3(0,-1,.25).addScaledVector(dir,-new THREE.Vector3(0,-1,.25).dot(dir)).normalize();const elbow=dir.clone().multiplyScalar(a).addScaledVector(bend,Math.sqrt(Math.max(0,arm.upper*arm.upper-a*a)));arm.pivot.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),elbow.clone().normalize());const lower=dir.multiplyScalar(distance).sub(elbow).normalize().applyQuaternion(arm.pivot.quaternion.clone().invert());arm.joint.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),lower);}
+
+// 20 · batch only static paper cutouts, leaving every animation/IK pivot intact.
+// Vertex colors retain the original linear material colors, normals and silhouettes.
+const packedPaper=mat('#ffffff');packedPaper.vertexColors=true;
+function packPaperDetails(parent,keep=new Set()){
+ const parts=parent.children.filter(o=>o.isMesh&&!keep.has(o)&&o.children.length===0);if(parts.length<2)return;
+ const positions=[],normals=[],colors=[];
+ for(const part of parts){part.updateMatrix();const geo=part.geometry.index?part.geometry.toNonIndexed():part.geometry.clone();geo.applyMatrix4(part.matrix);
+ const p=geo.attributes.position,n=geo.attributes.normal,c=part.material.color;
+ for(let i=0;i<p.count;i++){positions.push(p.getX(i),p.getY(i),p.getZ(i));normals.push(n.getX(i),n.getY(i),n.getZ(i));colors.push(c.r,c.g,c.b);}
+ geo.dispose();parent.remove(part);part.geometry.dispose();}
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeBoundingSphere();mesh(parent,geo,packedPaper);
+}
