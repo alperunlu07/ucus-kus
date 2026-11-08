@@ -385,11 +385,13 @@ function buildShortValley(){
  const tex=new THREE.CanvasTexture(canvas);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.colorSpace=THREE.SRGBColorSpace;tex.repeat.set(1/12,1/12);
  const ground=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({map:tex}));ground.name='Sonlu kağıt vadi';ground.receiveShadow=true;scene.add(ground);
  // Read-only workshop factories, lightly dotted along both approach and exit.
- for(let i=0;i<48;i++){const z=12-r()*280,x=(r()-.5)*86;if(z>-82&&z<-12)continue;if(Math.abs(x)<8&&r()<.7)continue;
+ const fp=village.userData.footprint||{minX:-16,maxX:17,minZ:-16,maxZ:14},vs=VALLEY.villageScale,vx=village.position.x,vz=village.position.z;
+ const inVillage=(x,z)=>x>vx+fp.minX*vs-2&&x<vx+fp.maxX*vs+2&&z>vz+fp.minZ*vs-2&&z<vz+fp.maxZ*vs+2;
+ for(let i=0;i<48;i++){const z=12-r()*280,x=(r()-.5)*86;if(inVillage(x,z))continue;if(Math.abs(x)<8&&r()<.7)continue;
   const tree=createTree({kind:i%4===0?'cicekli':'yuvarlak',seed:100+i,scale:1.1+r()*.8});tree.position.set(x,0,z);scene.add(tree);meadowTrees.push(tree);
   if(i%2===0){const f=createFlowerPatch({seed:100+i,w:3+r()*2,d:2});f.position.set(x+3,0,z+3);scene.add(f);}}
- for(const [x,z] of [[-20,-4],[17,-105],[-22,-174],[23,-237]]){const f=createFlowerPatch({seed:8,w:5,d:3});f.position.set(x,0,z);scene.add(f);}
- for(const [x,z] of [[-17,-100],[20,-190]]){const hay=createHayBale({seed:8,group:2});hay.position.set(x,0,z);scene.add(hay);}
+ for(const [x,z] of [[-20,-4],[22,-130],[-22,-174],[23,-237]]){const f=createFlowerPatch({seed:8,w:5,d:3});f.position.set(x,0,z);scene.add(f);}
+ for(const [x,z] of [[-20,-128],[20,-190]]){const hay=createHayBale({seed:8,group:2});hay.position.set(x,0,z);scene.add(hay);}
  const route=[['spark',0,-12],['spark',1,-23],['spark',2,-34],['card',0,-50],['spark',-2,-80],['spark',-3,-112],['spark',0,-146],['card',2,-178],['spark',1,-211],['spark',0,-241]];
  for(const [type,x,z] of route){const o=new THREE.Group();if(type==='spark')o.add(new THREE.Mesh(G.spark,M.spark));else{const card=new THREE.Mesh(G.card,M.card),stamp=new THREE.Mesh(new THREE.PlaneGeometry(.35,.4),M.stamp);stamp.position.set(.5,.25,.05);o.add(card,stamp);}
   const gl=new THREE.Sprite(glowMat.clone());gl.scale.setScalar(type==='card'?4.5:1.5);o.add(gl);o.position.set(x,10,z);scene.add(o);dynamic.push({type,o,taken:false,t:0,home:o.position.clone()});}

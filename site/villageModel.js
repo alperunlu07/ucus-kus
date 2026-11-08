@@ -16,7 +16,7 @@ import {createBird,updateBird} from './birdModel.js';
 
 export function createVillage({seed=1,scale=1}={}) {
  const g=new THREE.Group();g.name='Dere köyü';
- const d={seed,time:0,trees:[],sheep:[],cows:[],people:[],ducks:[],birds:[],waters:[],fields:[],outlines:[],districts:{all:[0,0,0],square:[-2,0,0],houses:[-3,0,0],fields:[-5,0,-9],paddock:[5.2,0,7.7],river:[12.6,0,1]}};g.userData=d;
+ const d={seed,time:0,trees:[],sheep:[],cows:[],people:[],ducks:[],birds:[],waters:[],fields:[],outlines:[],districts:{all:[-2,0,-14],square:[-2,0,0],houses:[-3,0,0],fields:[-2,0,-24],paddock:[5.2,0,7.7],river:[12.6,0,1]}};g.userData=d;
  const place=(obj,x,z,rot=0,y=0)=>{obj.position.set(x,y,z);obj.rotation.y=rot;g.add(obj);return obj;};
  const road=(kind,length,x,z,rot=0,sx=1,sz=1)=>{const o=createRoad({kind,length,seed:seed+7});o.scale.set(sx,1,sz);return place(o,x,z,rot,.026);};
  // The cross is the square; narrow lanes lead out through three distinct districts.
@@ -48,6 +48,19 @@ export function createVillage({seed=1,scale=1}={}) {
  d.mill=place(createWindmill({scale:.87}),2,-9.4,-.12);
  road('path',4.2,.1,-7.45,0,1,.5);
  place(createHayBale({seed,group:3,scale:.9}),.4,-6.0);place(createHayBale({seed:seed+1,group:2,scale:.8}),7.1,11.8);
+ // Farm lanes continue south of the mill plots; long strip fields follow those tracks.
+ road('path',31,-2,-24.7,Math.PI/2,.92,.75);
+ road('path',26,-10,-27,Math.PI/2,.9,.72);
+ road('path',24,6,-28,Math.PI/2,.9,.72);
+ road('path',16,-2,-27,0,.95,.7);
+ road('path',16,-2,-39,0,.95,.7);
+ const strips=[['mustard',-13.5,-20.8],['rice',-6.5,-20.8],['mustard',2.5,-20.8],['rice',9.5,-20.8],['rice',-13.5,-33.2],['mustard',-6.5,-33.2],['rice',2.5,-33.2],['mustard',9.5,-33.2]];
+ strips.forEach(([kind,x,z],i)=>d.fields.push(place(createPlot({kind,w:2.8,d:10,seed:seed+20+i}),x,z,i%2?-.02:.02)));
+ place(createHayBale({seed:seed+4,group:2,scale:.85}),-8.2,-27.2);
+ place(createHayBale({seed:seed+5,group:3,scale:.8}),3.4,-39);
+ place(createFlowerPatch({w:1.8,d:1.2,seed:seed+41}),-2.1,-15.6);
+ place(createFlowerPatch({w:1.6,d:1.1,seed:seed+42}),6.2,-26.8);
+ d.footprint={minX:-16,maxX:17,minZ:-42,maxZ:14};
  // River cut-section reaches both edges of the paper board; no isolated blue clip.
  const river=place(createRiver({seed:3}),12.8,0);river.scale.z=2.5;d.waters.push(river);
  d.outlines.push(river.userData.outline.map(([x,z])=>[x+12.8,z*2.5]));
@@ -56,7 +69,7 @@ export function createVillage({seed=1,scale=1}={}) {
  for(const [i,z,r] of [[0,1.2,.3],[1,3.3,2.5]]){const duck=place(createDuck({seed:seed+i}),riverX(z)+(i?.25:-.2),z,r,-.11);duck.scale.setScalar(.65);d.ducks.push(duck);}
  d.fisher=place(createFisher({seed:2,scale:.52}),12.8+river.userData.outline[22][0]-.5,1.5,Math.PI/2,.18);
  // Deliberately uneven: garden shade, a lane rhythm, and a loose riverbank grove.
- const treeSpots=[[-14,-5.8,1.15],[-12.8,-12.6,.9],[-7.1,-12.6,.85],[-.6,-12.9,1], [6.4,-13.2,1.1],[7.5,-8.6,.85],[-13,3.1,.85],[-12.2,7.1,1.1],[-8.6,7.5,.85],[-5.6,8.1,1.05],[-3.8,5.9,.7],[-.2,8.5,.9],[8.7,3.2,.8],[9.4,-6.7,1.05],[9.7,10.8,.9],[15.7,-7.2,.9],[16.2,-3.8,.75],[16,6.2,1.05],[-8.2,-2.0,.65],[.1,-2.3,.7]];
+ const treeSpots=[[-14,-5.8,1.15],[-12.8,-12.6,.9],[-7.1,-12.6,.85],[-.6,-12.9,1], [6.4,-13.2,1.1],[7.5,-8.6,.85],[-13,3.1,.85],[-12.2,7.1,1.1],[-8.6,7.5,.85],[-5.6,8.1,1.05],[-3.8,5.9,.7],[-.2,8.5,.9],[8.7,3.2,.8],[9.4,-6.7,1.05],[9.7,10.8,.9],[15.7,-7.2,.9],[16.2,-3.8,.75],[16,6.2,1.05],[-8.2,-2.0,.65],[.1,-2.3,.7],[-14,-40,1],[-2,-41.2,.95],[8.2,-40.4,1.05],[11.7,-31.5,.85],[-14.2,-26.5,.8]];
  treeSpots.forEach(([x,z,s],i)=>d.trees.push(place(createTree({kind:i%6===0?'cicekli':'yuvarlak',seed:seed+i,scale:s}),x,z,i*.9)));
  for(const [i,x,y,z] of [[0,-4,4.5,-4],[1,7,4.2,-5]]){const b=place(createBird({species:'swallow',small:true,scale:.16,phase:i}),x,z,.4,y);d.birds.push(b);}
  g.scale.setScalar(scale);return g;
