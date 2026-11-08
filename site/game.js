@@ -20,7 +20,8 @@ const SHORT=false;
 const VALLEY={width:100,near:20,far:-280,start:0,end:-260,flightHalfWidth:34,villageZ:-43,villageScale:1.9};
 let village=null;const meadowTrees=[];let villagePassed=false;
 function villageWorldBox(){if(!village)return null;const fp=village.userData.footprint||{minX:-16,maxX:17,minZ:-106,maxZ:14};const vs=village.scale.x||VALLEY.villageScale,vx=village.position.x,vz=village.position.z;return {x0:vx+fp.minX*vs,x1:vx+fp.maxX*vs,z0:vz+fp.minZ*vs,z1:Math.max(vz+fp.maxZ*vs,16)};}
-function villageBlend(x,z,m=8){const b=villageWorldBox();if(!b)return 0;if(x<b.x0-m||x>b.x1+m||z<b.z0-m||z>b.z1+m)return 0;const dx=x<b.x0?b.x0-x:x>b.x1?x-b.x1:0;const dz=z<b.z0?b.z0-z:z>b.z1?z-b.z1:0;const d=Math.hypot(dx,dz);return d<=0?1:THREE.MathUtils.smoothstep(m,0,d);}
+function villageShadeBox(){const b=villageWorldBox();if(!b)return null;const out={x0:b.x0,x1:b.x1,z0:b.z0-24,z1:b.z1};for(let z=out.z0;z<=out.z1;z+=8){const rx=riverX(z);out.x0=Math.min(out.x0,rx-8);out.x1=Math.max(out.x1,rx+8);}return out;}
+function villageBlend(x,z,m=8){const b=villageShadeBox();if(!b)return 0;if(x<b.x0-m||x>b.x1+m||z<b.z0-m||z>b.z1+m)return 0;const dx=x<b.x0?b.x0-x:x>b.x1?x-b.x1:0;const dz=z<b.z0?b.z0-z:z>b.z1?z-b.z1:0;const d=Math.hypot(dx,dz);return d<=0?1:1-THREE.MathUtils.smoothstep(d,0,m);}
 function inVillage(x,z){const b=villageWorldBox();if(!b)return false;return x>b.x0-2&&x<b.x1+2&&z>b.z0-2&&z<b.z1+2;}
 function pointInRing(x,z,ring,vs,vx,vz){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const xi=ring[i][0]*vs+vx,zi=ring[i][1]*vs+vz,xj=ring[j][0]*vs+vx,zj=ring[j][1]*vs+vz;if(((zi>z)!==(zj>z))&&(x<(xj-xi)*(z-zi)/((zj-zi)||1e-9)+xi))inside=!inside;}return inside;}
 function inVillageCreek(x,z){if(!village||!village.userData.outlines)return false;const vs=village.scale.x||VALLEY.villageScale,vx=village.position.x,vz=village.position.z;for(const ring of village.userData.outlines){if(pointInRing(x,z,ring,vs,vx,vz))return true;}return false;}
@@ -62,7 +63,7 @@ function groundColor(x,z,h,out){const q=biomeAt(z);const n=fbm(x*.05+9,z*.05);
  if(h<-1.2){out.set('#3f78c0');ACC.copy(out);return out;}
  if(h<-.4){out.copy(g).lerp(C('#e6d7a6'),.75);ACC.copy(out);return out;}
  if(h>9){g.lerp(C('#c7b8a6'),Math.min(1,(h-9)/5));} if(h>14)g.lerp(C('#fbf8f2'),Math.min(1,(h-14)/3));
- out.copy(g);const vk=villageBlend(x,z,28);if(vk>0){if(inVillageCreek(x,z)||h<-1.2){out.set('#3f78c0');ACC.copy(out);return out;}const n2=fbm(x*.05+9,z*.05),a0=pal[0];VG.copy(a0.g1).lerp(a0.g2,n2);out.lerp(VG,vk);ACC.lerp(a0.acc,vk);BW[0]=BW[0]*(1-vk)+vk;BW[1]*=1-vk;BW[2]*=1-vk;}return out;}
+ out.copy(g);const vk=villageBlend(x,z,16);if(vk>0){if(inVillageCreek(x,z)||h<-1.2){out.set('#3f78c0');ACC.copy(out);return out;}const n2=fbm(x*.05+9,z*.05),a0=pal[0];VG.copy(a0.g1).lerp(a0.g2,n2);out.lerp(VG,vk);ACC.lerp(a0.acc,vk);BW[0]*=1-vk;BW[1]*=1-vk;BW[2]*=1-vk;}return out;}
 // ---------- renderer ----------
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
@@ -82,7 +83,7 @@ const sun=new THREE.DirectionalLight('#fff1d6',2.2);sun.castShadow=true;sun.shad
 Object.assign(sun.shadow.camera,{left:-55,right:55,top:55,bottom:-55,near:1,far:240});sun.shadow.radius=2;sun.shadow.intensity=.55;sun.shadow.bias=-.0008;
 scene.add(sun,sun.target);
 // cloud shadow shader injection
-const U={uTime:{value:0}};const URV={value:new THREE.Vector3()};
+const U={uTime:{value:0}};const URV={value:new THREE.Vector3()};const UVIL={value:new THREE.Vector4(1e6,-1e6,1e6,-1e6)};
 function cloudify(m){m.onBeforeCompile=s=>{s.uniforms.uTime=U.uTime;
  s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vW;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvW=(modelMatrix*vec4(transformed,1.)).xyz;');
  s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
@@ -93,20 +94,20 @@ function cloudify(m){m.onBeforeCompile=s=>{s.uniforms.uTime=U.uTime;
  vec2 cp=vW.xz*.018+vec2(uTime*.04,uTime*.015);float cs=n2(cp)*.65+n2(cp*2.1)*.35;cs=smoothstep(.56,.68,cs);
  gl_FragColor.rgb*=1.-cs*.2;`);};return m;}
 const groundMat=cloudify(new THREE.MeshLambertMaterial({vertexColors:true}));
-{const ob=groundMat.onBeforeCompile;groundMat.onBeforeCompile=sh=>{ob(sh);sh.uniforms.uRv=URV;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 acc;varying vec3 vAcc;attribute vec3 bw;varying vec3 vBw;').replace('#include <begin_vertex>','#include <begin_vertex>\nvAcc=acc;vBw=bw;');
- sh.fragmentShader=sh.fragmentShader.replace('uniform float uTime;','uniform float uTime;uniform vec3 uRv;varying vec3 vAcc;varying vec3 vBw;').replace('#include <color_fragment>',`#include <color_fragment>
- {float rx=sin(vW.z*.012+uRv.x)*uRv.y+sin(vW.z*.031+uRv.x*2.)*6.-uRv.z;float dxr=vW.x-rx;
+{const ob=groundMat.onBeforeCompile;groundMat.onBeforeCompile=sh=>{ob(sh);sh.uniforms.uRv=URV;sh.uniforms.uVil=UVIL;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 acc;varying vec3 vAcc;attribute vec3 bw;varying vec3 vBw;attribute float noRoad;varying float vNoRoad;').replace('#include <begin_vertex>','#include <begin_vertex>\nvAcc=acc;vBw=bw;vNoRoad=noRoad;');
+ sh.fragmentShader=sh.fragmentShader.replace('uniform float uTime;','uniform float uTime;uniform vec3 uRv;uniform vec4 uVil;varying vec3 vAcc;varying vec3 vBw;varying float vNoRoad;').replace('#include <color_fragment>',`#include <color_fragment>
+ {float rx=sin(vW.z*.012+uRv.x)*uRv.y+sin(vW.z*.031+uRv.x*2.)*6.-uRv.z;float dxr=vW.x-rx;float dxv=max(uVil.x-vW.x,max(vW.x-uVil.y,0.));float dzv=max(uVil.z-vW.z,max(vW.z-uVil.w,0.));float vil=1.-smoothstep(0.,20.,length(vec2(dxv,dzv)));
   vec2 wp=vW.xz/17.;wp+=vec2(n2(vW.xz*.045),n2(vW.xz*.045+9.))*1.5;
   vec2 ip=floor(wp),fp=fract(wp);float d1=9.,d2=9.;vec2 id=vec2(0.);
   for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 o=vec2(float(i),float(j));vec2 pt=vec2(h2(ip+o),h2(ip+o+3.1))*.8+.1;float d=length(o+pt-fp);if(d<d1){d2=d1;d1=d;id=ip+o;}else if(d<d2)d2=d;}
   float hv=h2(id+7.);float edge=(d2-d1)*17.;
-  float away=smoothstep(6.5,8.,abs(dxr));vec3 base=diffuseColor.rgb;
+  float away=smoothstep(6.5,8.,abs(dxr))*(1.-vil);vec3 base=diffuseColor.rgb;
   float br=n2(vW.xz*.5)*.05+n2(vW.xz*1.7)*.03-.04;
   vec3 fc=mix(base,vAcc,step(.42,hv))*mix(.93,1.07,h2(id+1.3));fc*=1.+br;
   fc=mix(base*.88,fc,smoothstep(.7,1.6,edge));
   diffuseColor.rgb=mix(base*(1.+br),fc,away);
-  float road=1.-smoothstep(.9,1.3,abs(dxr+24.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.6,.57,.52),road*away);
-  float bank=1.-smoothstep(4.6,5.4,abs(dxr));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.7,.62,.36),bank*.8);float rv=1.-smoothstep(3.7,4.1,abs(dxr));vec3 wc=mix(vec3(.03,.11,.38),vec3(.07,.21,.52),smoothstep(2.2,3.8,abs(dxr))*.6+n2(vW.xz*vec2(.3,.05)+vec2(0.,uTime*.3))*.25);wc+=(step(.992,h2(floor(vW.xz*1.6)+floor(uTime*1.5)*.37))*smoothstep(.45,.1,length(fract(vW.xz*1.6)-.5)))*.3;diffuseColor.rgb=mix(diffuseColor.rgb,wc,rv);
+  float road=(1.-smoothstep(.9,1.3,abs(dxr+24.)))*(1.-vNoRoad);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.6,.57,.52),road*away);
+  float bank=(1.-smoothstep(4.6,5.4,abs(dxr)))*(1.-vil);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.7,.62,.36),bank*.8);float rv=(1.-smoothstep(3.7,4.1,abs(dxr)))*(1.-vil);vec3 wc=mix(vec3(.03,.11,.38),vec3(.07,.21,.52),smoothstep(2.2,3.8,abs(dxr))*.6+n2(vW.xz*vec2(.3,.05)+vec2(0.,uTime*.3))*.25);wc+=(step(.992,h2(floor(vW.xz*1.6)+floor(uTime*1.5)*.37))*smoothstep(.45,.1,length(fract(vW.xz*1.6)-.5)))*.3;diffuseColor.rgb=mix(diffuseColor.rgb,wc,rv);
   {float aw=smoothstep(.4,.6,vBw.z)*away;if(aw>.01){float seg=floor((vW.z+vW.x*.18)/70.);float zz=fract((vW.z+vW.x*.18)/70.)*70.-35.;float hs=h2(vec2(seg,4.));
    float side=hs>.5?1.:-1.;float len=18.+hs*40.;float off=dxr*side;float sr=(1.-smoothstep(.55,.85,abs(zz)))*step(5.5,off)*step(off,len);
    float car=step(.9,fract((dxr*side+uTime*1.6+hs*30.)/14.))*(1.-smoothstep(.15,.3,abs(zz)))*sr;
@@ -150,10 +151,10 @@ function buildChunk(ch,idx){
  for(let i=dynamic.length-1;i>=0;i--)if(dynamic[i].chunk===ch)dynamic.splice(i,1);
  const g=new THREE.Group();ch.group=g;
  const geo=new THREE.PlaneGeometry(CW,CL,SEG_X,SEG_Z);geo.rotateX(-Math.PI/2);geo.userData.own=true;
- const p=geo.attributes.position,cols=new Float32Array(p.count*3),accs=new Float32Array(p.count*3),bws=new Float32Array(p.count*3),col=new THREE.Color();
+ const p=geo.attributes.position,cols=new Float32Array(p.count*3),accs=new Float32Array(p.count*3),bws=new Float32Array(p.count*3),noRoad=new Float32Array(p.count),col=new THREE.Color();
  for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i)+z0-CL/2;const h=height(x,z);p.setY(i,h);p.setZ(i,z);
   groundColor(x,z,h,col);cols.set([col.r,col.g,col.b],i*3);accs.set([ACC.r,ACC.g,ACC.b],i*3);bws.set(BW,i*3);}
- geo.setAttribute('color',new THREE.BufferAttribute(cols,3));geo.setAttribute('acc',new THREE.BufferAttribute(accs,3));geo.setAttribute('bw',new THREE.BufferAttribute(bws,3));geo.computeVertexNormals();
+ geo.setAttribute('color',new THREE.BufferAttribute(cols,3));geo.setAttribute('acc',new THREE.BufferAttribute(accs,3));geo.setAttribute('bw',new THREE.BufferAttribute(bws,3));geo.setAttribute('noRoad',new THREE.BufferAttribute(noRoad,1));geo.computeVertexNormals();
  const ng=geo;ng.userData.own=true;
  const mesh=new THREE.Mesh(ng,groundMat);mesh.receiveShadow=true;g.add(mesh);
  // water plane
@@ -174,7 +175,7 @@ function buildChunk(ch,idx){
   const tree=createTree({kind,seed:idx*131+i+3,biome:bz,scale:(.85+r()*.7)*(bz===5?1.15:1)});tree.position.set(x,h,z);tree.rotation.y=r()*6;g.add(tree);
   dynamic.push({type:'xtree',o:tree,chunk:ch,hasBirds:r()<.25});}
  // village
- const coastV=biome(z0-30)===3;for(let vc=0;vc<1;vc++)if(r()<(coastV?1:.6)){const vx=riverX(z0-30)+(coastV?1:(r()<.5?-1:1))*(16+r()*10),vz=z0-15-r()*30;
+ const coastV=biome(z0-30)===3;for(let vc=0;vc<1;vc++)if(r()<(coastV?1:.6)){const _rx=riverX(z0-30),_hs=coastV?1:(r()<.5?-1:1);let vx=_rx+_hs*(16+r()*10);const vz=z0-15-r()*30;if(_hs<0&&Math.abs(vx-(_rx-24))<10)vx=_rx-13;
   if(inVillage(vx,vz))continue;
   for(let i=0;i<2+r()*3;i++){const x=vx+(r()-.5)*9,z=vz+(r()-.5)*9;if(inVillage(x,z))continue;const h=height(x,z);if(h<-.3)continue;
    const house=createHouse({biome:[0,2,4,1,3,5][biome(z)]||0,seed:idx*17+i+1,width:2.1+r()*.3,depth:1.8,height:1.5+r()*.3});house.position.set(x,h,z);house.rotation.y=r()*6;house.scale.setScalar(1.05);g.add(house);
@@ -182,7 +183,7 @@ function buildChunk(ch,idx){
  // animals: instanced crowds (sheep, cows, deer, rabbits, ducks, land birds)
  {const bz0=biome(z0-30);const nh=2+Math.floor(r()*3);
   const TBL={0:['pduck','pduck','bird'],1:['deer','deer','bird','rabbit'],2:['sheep','sheep','sheep','cow','rabbit'],3:['bird','duck'],4:['cow','cow','bird'],5:['sheep','rabbit','bird']};
-  for(let k=0;k<nh;k++){const hx=riverX(z0)+(r()<.5?-1:1)*(8+r()*16),hz=z0-r()*CL;if(inVillage(hx,hz))continue;const bi=biome(hz);const L=TBL[bi];const kind=L[Math.floor(r()*L.length)];
+  for(let k=0;k<nh;k++){let hx=riverX(z0)+(r()<.5?-1:1)*(8+r()*16),hz=z0-r()*CL;const _rd=riverX(hz)-24;if(Math.abs(hx-_rd)<5)hx=_rd+(hx<_rd?-10:10);if(inVillage(hx,hz))continue;const bi=biome(hz);const L=TBL[bi];const kind=L[Math.floor(r()*L.length)];
    if(kind==='sheep'&&r()<.6)addFence(g,hx,hz,r);
    addCrowd(g,ch,kind,hx,hz,r);}
   if(r()<.7){const dz=z0-r()*CL,dx=riverX(dz)+(r()-.5)*3;if(!inVillage(dx,dz))addCrowd(g,ch,'duck',dx,dz,r);}}
@@ -200,9 +201,9 @@ function buildChunk(ch,idx){
   else if(bi===0){const patch=createFlowerPatch({seed:idx*53+i,w:3+r()*2,d:2+r()});patch.position.set(x,h,z);g.add(patch);dynamic.push({type:'flowers',o:patch,chunk:ch,ph:r()*6,sway:0});}
   else{const patch=createFlowerPatch({seed:idx*59+i,w:3,d:2.2});patch.position.set(x,h,z);g.add(patch);if(bi===1)dynamic.push({type:'flowers',o:patch,chunk:ch,ph:r()*6,sway:0});}}
  addHuman(g,ch,z0,r);addPlots(g,z0,r);
- {let dirty=0;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);let dry=0;for(const t of TOWNS){const rr=t[2]*1.05;if(Math.hypot(x-t[0],z-t[1])<rr){dry=1;bws[i*3+2]=0;}}if(RAILZ!==null&&Math.abs(z-RAILZ)<3.4)dry=1;if(dry&&bws[i*3]>0){bws[i*3]=0;dirty=1;}}if(dirty)geo.attributes.bw.needsUpdate=true;}
+ {let dirty=0;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);let dry=0;for(const t of TOWNS){const rr=t[2]*1.05;if(Math.hypot(x-t[0],z-t[1])<rr){dry=1;bws[i*3+2]=0;noRoad[i]=1;}}if(RAILZ!==null&&Math.abs(z-RAILZ)<3.4){dry=1;noRoad[i]=1;}if(dry&&bws[i*3]>0){bws[i*3]=0;dirty=1;}}if(dirty)geo.attributes.bw.needsUpdate=true;geo.attributes.noRoad.needsUpdate=true;}
  for(const rec of TB){const p=rec.o.position;if(TOWNS.some(t=>Math.hypot(t[0]-p.x,t[1]-p.z)<t[2]*.75)||(RAILZ!==null&&Math.abs(p.z-RAILZ)<2.5)){rec.o.scale.setScalar(.001);rec.o.updateMatrix();rec.hid=1;}}
- for(const d of dynamic){if(d.chunk===ch&&d.type==='xtree'){const p=d.o.position;if(inVillage(p.x,p.z)||TOWNS.some(t=>Math.hypot(t[0]-p.x,t[1]-p.z)<t[2]*.75)||(RAILZ!==null&&Math.abs(p.z-RAILZ)<2.5))d.o.visible=false;}}
+ for(const d of dynamic){if(d.chunk===ch&&(d.type==='xtree'||d.type==='house')){const p=d.o.position;if(inVillage(p.x,p.z)||TOWNS.some(t=>Math.hypot(t[0]-p.x,t[1]-p.z)<t[2]*.75)||(d.type==='xtree'&&RAILZ!==null&&Math.abs(p.z-RAILZ)<2.5))d.o.visible=false;}}
  // build tree instances
  {const n=TB.length;if(n){const mk=(geo,cnt)=>{const im=new THREE.InstancedMesh(geo,M.inst,Math.max(1,cnt));im.castShadow=true;im.count=0;g.add(im);return im;};
   const trI=mk(G.trunk,n),coI=mk(G.cone,n),baI=mk(G.ball,n);trI.instanceColor=null;const brown=C('#9a7458');
@@ -218,8 +219,8 @@ function buildChunk(ch,idx){
   if(r()<.4){const lx=riverX(z0-30)-26-r()*6,lz=z0-30;if(!inVillage(lx,lz)){const lh=Math.max(height(lx,lz),-.5);const lt=createLighthouse({seed:idx+9,scale:1.15});lt.position.set(lx,lh,lz);g.add(lt);dynamic.push({type:'lighthouse',o:lt,chunk:ch,factory:1});}}}
  // windmills / bridge
  if(r()<.35&&biome(z0-30)!==3){const wx=(r()<.5?-1:1)*(22+r()*14)+riverX(z0-20),wz=z0-20-r()*20,wh=height(wx,wz);if(!inVillage(wx,wz)&&wh>-.2&&wh<9){const wm=createWindmill({seed:idx+11,scale:1.05});wm.position.set(wx,wh,wz);wm.rotation.y=r()*1-.5;g.add(wm);dynamic.push({type:'mill',o:wm,chunk:ch,factory:1});}}
- const _bz=z0-10-r()*40;if(r()<.5&&!inVillage(riverX(_bz),_bz)&&biome(_bz)!==3&&biome(_bz-10)!==3&&biome(_bz+10)!==3&&height(riverX(_bz)-24,_bz)>-.2&&height(riverX(_bz)+30,_bz)>-.2){const bz=_bz,bx=riverX(bz);const br=new THREE.Group();const deck=new THREE.Mesh(G.arch,M.trunk);deck.castShadow=true;br.add(deck);
-   br.position.set(bx,Math.max(height(bx-8,bz),height(bx+8,bz),-1)-.3,bz);br.rotation.y=Math.atan(riverX(bz+.5)-riverX(bz-.5));g.add(br);roadSeg(g,bx-9,bz,bx-24,bz);roadSeg(g,bx+9,bz,bx+30,bz);}
+ const _bz=z0-10-r()*40;if(r()<.5&&!inVillage(riverX(_bz),_bz)&&biome(_bz)!==3&&biome(_bz-10)!==3&&biome(_bz+10)!==3&&height(riverX(_bz)-24,_bz)>-.2&&height(riverX(_bz)+30,_bz)>-.2){const bz=_bz,bx=riverX(bz);const br=new THREE.Group();const deck=new THREE.Mesh(G.arch,M.trunk);deck.castShadow=true;deck.scale.set(1.25,1,1);br.add(deck);
+   br.position.set(bx,Math.max(height(bx-8,bz),height(bx+8,bz),.2)+.2,bz);g.add(br);roadSeg(g,bx-10,bz,bx-24,bz);roadSeg(g,bx+10,bz,bx+30,bz);}
  // wow set piece every ~800m: hot-air balloons + sparkle ring
  if(idx>0&&idx%13===0){const cz=z0-30,cx=riverX(cz);for(let i=0;i<5;i++){const bl=createBalloon({seed:idx*5+i,color:i,scale:1.15});bl.position.set(cx+(i-2)*9,height(cx,cz)+12+r()*8,cz-r()*20);g.add(bl);dynamic.push({type:'balloon',o:bl,chunk:ch,ph:r()*6,y0:bl.position.y,push:0,factory:1});}
   const ry=Math.max(height(cx,cz),0)+10;for(let i=0;i<12;i++){const a=i/12*Math.PI*2;const sp=createSparkle({kind:'single',seed:idx*13+i,scale:1});const gl=new THREE.Sprite(glowMat.clone());gl.scale.setScalar(1.15);sp.add(gl);sp.position.set(cx+Math.cos(a)*4,ry+Math.sin(a)*4,cz);g.add(sp);dynamic.push({type:'spark',o:sp,chunk:ch,taken:false,t:0,factory:1,baseScale:1});}
@@ -233,7 +234,7 @@ function buildChunk(ch,idx){
   c.position.set(x,Math.max(height(x,z),0)+7+r()*6,z);g.add(c);dynamic.push({type:'card',o:c,chunk:ch,taken:false,t:0,factory:1,baseScale:.48});}}
  // clouds
  for(let i=0;i<3;i++){const x=(r()-.5)*90,z=z0-r()*CL,y=30+r()*25;if(inVillage(x,z))continue;
-  const cl=createCloud({kind:'bank',seed:idx*21+i,scale:.9+r()*.45});cl.position.set(x,y,z);g.add(cl);dynamic.push({type:'cloud',o:cl,chunk:ch,ph:r()*6,factory:1});}
+  const cl=createCloud({kind:'bank',seed:idx*21+i,scale:2.6+r()*.9});cl.position.set(x,y,z);g.add(cl);dynamic.push({type:'cloud',o:cl,chunk:ch,ph:r()*6,factory:1});}
  if(SP.length){const im=new THREE.InstancedMesh(G.spark,M.spark,SP.length);im.frustumCulled=false;g.add(im);let k=0;for(const d of dynamic)if(d.chunk===ch&&d.type==='spark'){d.im=im;d.ii=k;d.o.updateMatrix();im.setMatrixAt(k++,d.o.matrix);}im.count=k;}
  scene.add(g);}
 const CR={sheep:{n:[12,22],c:'#f4efe4',s:[.46,.32,.62],head:1,sp:4,sc:12,toast:'Koyun sürüsü dağıldı 🐑'},cow:{n:[4,7],c:'#5a4434',s:[.6,.38,.95],head:1,sp:3,sc:12,toast:'İnekler şaşırdı 🐄'},
@@ -271,7 +272,7 @@ function crowdTick(d,dt,t){const c=d.c;const dx0=d.cx-birdPos.x,dz0=d.cz-birdPos
   if(sc){m.x+=m.vx*dt;m.z+=m.vz*dt;m.vx*=1-dt*.7;m.vz*=1-dt*.7;m.yaw=Math.atan2(m.vx,m.vz);m.hop+=dt*(c.hop?6:4);if(c.fly){m.y=Math.min(m.y+dt*6,9+Math.sin(m.ph)*2);}}
   else{const tx=sx+d.wx*2+Math.sin(t*.07+m.ph)*c.sc*.3-m.x,tz=sz+d.wz*2+Math.cos(t*.06+m.ph)*c.sc*.3-m.z;const graze=Math.sin(t*.25+m.ph*3)>.2?.15:1;m.gr=graze<1?1:0;if(c.fly&&m.y<.3&&Math.sin(t*1.7+m.ph*5)>.85)m.hop+=dt*6;m.vx+=(tx*.025*graze-m.vx)*dt;m.vz+=(tz*.025*graze-m.vz)*dt;m.x+=(m.vx+d.wx*.05)*dt;m.z+=(m.vz+d.wz*.05)*dt;
    if(Math.hypot(m.vx,m.vz)>.05)m.yaw+=(Math.atan2(m.vx,m.vz)-m.yaw)*dt*.3;m.hop*=1-dt*2;if(c.fly)m.y=Math.max(0,m.y-dt*3);}
-  if(!c.water&&!c.paddy&&!c.fly&&Math.abs(m.x-riverX(m.z))<9.5){m.vx*=-1;m.vz*=-1;m.x+=m.vx*dt*2;m.z+=m.vz*dt*2;}}
+  if(!c.water&&!c.paddy&&!c.fly&&Math.abs(m.x-riverX(m.z))<9.5){m.vx*=-1;m.vz*=-1;m.x+=m.vx*dt*2;m.z+=m.vz*dt*2;}const rd=riverX(m.z)-24;if(!c.water&&!c.paddy&&!c.fly&&Math.abs(m.x-rd)<2.6){const sg=m.x<rd?-1:1;m.x=rd+sg*2.8;m.vx=sg*Math.abs(m.vx||.4);}}
  crowdSet(d,t);}
 const fenceGeo=new THREE.BoxGeometry(.12,.5,.12),railGeo=new THREE.BoxGeometry(.06,.06,1);
 function addFence(g,hx,hz,r){const R0=9+r()*3,n=22,im=new THREE.InstancedMesh(fenceGeo,M.trunk,n),rl=new THREE.InstancedMesh(railGeo,M.trunk,n);const gap=Math.floor(r()*n);
@@ -304,10 +305,10 @@ function addHuman(g,ch,z0,r){const bz=biome(z0-30);let railZ=null;TOWNS.length=0
   const dir=r()<.5?1:-1;const nw=3+Math.floor(r()*3);const tr=createTrain({wagons:nw});
   g.add(tr);dynamic.push({type:'train',o:tr,chunk:ch,prof,zr,dir,x:(r()-.5)*60,sp:4+r()*2,factory:1});}}
  // ships on river
- if(r()<.55){const sz=z0-r()*CL;if(!inVillage(riverX(sz),sz)){const sh=createShip({kind:bz===3?0:1});sh.position.set(riverX(sz),Math.max(height(riverX(sz),sz),-1.4)+.02,sz);g.add(sh);dynamic.push({type:'ship',o:sh,chunk:ch,river:1,z:sz,sp:(r()<.5?-1:1)*(1+r()*1.5),ph:r()*6,factory:1});}}
+ if(r()<.55){const sz=z0-r()*CL;if(!inVillage(riverX(sz),sz)&&(railZ===null||Math.abs(sz-railZ)>16)){const sh=createShip({kind:bz===3?0:1});sh.position.set(riverX(sz),Math.max(height(riverX(sz),sz),-1.4)+.02,sz);g.add(sh);dynamic.push({type:'ship',o:sh,chunk:ch,river:1,z:sz,sp:(r()<.5?-1:1)*(1+r()*1.5),ph:r()*6,factory:1});}}
  if(bz===3)for(let k=0;k<2;k++){if(r()<.6){const sz=z0-r()*CL,sx=riverX(sz)-22-r()*14;if(inVillage(sx,sz)||height(sx,sz)>-1.2||!spotFree(sx,sz,7))continue;const sh=createShip({kind:r()<.5?0:2});sh.position.set(sx,-.7,sz);sh.rotation.y=r()*6;g.add(sh);dynamic.push({type:'ship',o:sh,chunk:ch,river:0,sp:.8+r(),ph:r()*6,factory:1});}}
  // settlement
- if(r()<(bz===0||bz===4?.35:.55)){const town=r()<.35;const side=r()<.5?-1:1;const cz=z0-15-r()*30,cx=riverX(cz)+side*(bz===3?24:16+r()*10);if(!inVillage(cx,cz)&&height(cx,cz)>-.2)addTown(g,ch,cx,cz,town,r,bz,railZ);}}
+ if(r()<(bz===0||bz===4?.35:.55)){const town=r()<.35;const side=r()<.5?-1:1;let cz=z0-15-r()*30;const minSep=town?26:17;if(railZ!==null&&Math.abs(cz-railZ)<minSep)cz=THREE.MathUtils.clamp(railZ+(cz>=railZ?1:-1)*minSep,z0-CL+8,z0-8);const cx=riverX(cz)+side*(bz===3?24:16+r()*10);if(!inVillage(cx,cz)&&height(cx,cz)>-.2)addTown(g,ch,cx,cz,town,r,bz,railZ);}}
 const WAKET=(()=>{const c=document.createElement('canvas');c.width=64;c.height=128;const x=c.getContext('2d');x.lineCap='round';for(let i=0;i<14;i++){const f=i/14;x.strokeStyle='rgba(255,255,255,'+(.75*(1-f))+')';x.lineWidth=5-f*3;x.beginPath();const y0=4+f*112,y1=y0+9,w0=4+f*26,w1=4+(f+1/14)*26;x.moveTo(32-w0,y0);x.lineTo(32-w1,y1);x.moveTo(32+w0,y0);x.lineTo(32+w1,y1);x.stroke();}const gr=x.createLinearGradient(0,0,0,40);gr.addColorStop(0,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=gr;x.fillRect(24,0,16,40);return new THREE.CanvasTexture(c);})();
 const WAKEG=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);const WAKEM=new THREE.MeshBasicMaterial({map:WAKET,transparent:true,depthWrite:false,opacity:.7});
 function makeShip(r,kind){const s=new THREE.Group();const L=kind===2?5:kind===1?4:6;const hull=new THREE.Mesh(G.box,kind===2?M.wall:HM.hull);hull.scale.set(1.5,.6,L);hull.castShadow=true;
@@ -318,7 +319,7 @@ function makeShip(r,kind){const s=new THREE.Group();const L=kind===2?5:kind===1?
  {const wk=new THREE.Mesh(WAKEG,WAKEM);wk.scale.set(2.6,1,L*.75);wk.position.set(0,.06,L/2+L*.36);wk.renderOrder=2;s.add(wk);}
  s.scale.setScalar(1.6);return s;}
 const TOWNS=[];let RAILZ=null;function roadSeg(g,x0,z0,x1,z1){const n=Math.ceil(Math.hypot(x1-x0,z1-z0)/1.5);const im=new THREE.InstancedMesh(G.box,HM.road,n);im.receiveShadow=true;let k=0;const ang=Math.atan2(x1-x0,z1-z0);_e.set(0,ang,0);_q.setFromEuler(_e);
- for(let i=0;i<n;i++){const f=(i+.5)/n,x=x0+(x1-x0)*f,z=z0+(z1-z0)*f;if(Math.abs(x-riverX(z))<10)continue;const h=height(x,z);if(h<-.2)continue;_m4.compose(_v.set(x,h+.01,z),_q,_s.set(1.3,.07,1.6));im.setMatrixAt(k++,_m4);}im.count=k;g.add(im);}
+ for(let i=0;i<n;i++){const f=(i+.5)/n,x=x0+(x1-x0)*f,z=z0+(z1-z0)*f;if(Math.abs(x-riverX(z))<7)continue;const h=height(x,z);if(h<-.2)continue;_m4.compose(_v.set(x,h+.01,z),_q,_s.set(1.3,.07,1.6));im.setMatrixAt(k++,_m4);}im.count=k;g.add(im);}
 function addTown(g,ch,cx,cz,town,r,bz,railZ){if(inVillage(cx,cz))return;TOWNS.push([cx,cz,town?24:15]);const R0=town?14:8;
  const st=createTown({town,biome:[0,2,4,1,3,5][bz]||0,seed:Math.floor(r()*9999)+1,station:railZ!==null&&Math.abs(railZ-cz)<40});st.position.set(cx,height(cx,cz),cz);g.add(st);
  const mk=new THREE.Object3D();mk.position.set(cx,0,cz);dynamic.push({type:'town',o:mk,chunk:ch,town,model:st});
@@ -350,7 +351,7 @@ function actTick(d,dt,t,dd){d.t+=dt;const P=d.P;const o=d.o;
 const PLOTC={1:['#b9733f','#8f5a36','#d9a066'],2:['#5f9a3e','#7db552','#4e8a3a'],4:['#b98a4e','#a8743f'],5:['#c9b23a','#8fae3f','#e0c64a']};
 function addPlots(g,z0,r){const kinds={1:'autumn',2:'pampa',4:'savanna',5:'mustard'};const kind=kinds[biome(z0-30)];if(!kind)return;const np=Math.round((2+r()*3)*PROPK);
  for(let k=0;k<np;k++){const z=z0-r()*CL,x=riverX(z)+(r()<.5?-1:1)*(12+r()*20);if(inVillage(x,z))continue;const W=Math.min(8,6+r()*6),L=Math.min(8,8+r()*8);
-  let ok=!(RAILZ!==null&&Math.abs(z-RAILZ)<W/2+3)&&!TOWNS.some(t=>Math.hypot(t[0]-x,t[1]-z)<t[2]+L/2);for(const [a,b] of[[-1,-1],[1,1],[1,-1],[-1,1]])if(height(x+a*L/2,z+b*W/2)<-.1)ok=false;if(!ok)continue;
+  let ok=!(RAILZ!==null&&Math.abs(z-RAILZ)<W/2+3)&&!TOWNS.some(t=>Math.hypot(t[0]-x,t[1]-z)<t[2]+L/2)&&Math.abs(x-riverX(z))>W/2+8;for(const [a,b] of[[-1,-1],[1,1],[1,-1],[-1,1]])if(height(x+a*L/2,z+b*W/2)<-.1)ok=false;if(!ok)continue;
   const plot=createPlot({kind,w:W,d:L,seed:Math.floor(r()*999)+k+1});plot.position.set(x,height(x,z),z);plot.rotation.y=r()*Math.PI;g.add(plot);}}
 function makeGull(){const b=new THREE.Group();const bd=new THREE.Mesh(G.gb,M.wool);bd.scale.set(1,.8,2);const l=new THREE.Mesh(G.gw,M.wool),r2=new THREE.Mesh(G.gw,M.wool);r2.scale.x=-1;b.add(bd,l,r2);b.userData.w=[l,r2];return b;}
 const waterMat=cloudify(new THREE.MeshLambertMaterial({color:'#3f78c0',emissive:'#10284a'}));
@@ -382,7 +383,7 @@ function buildShortValley(){
  for(const [type,x,z] of route){const o=new THREE.Group();if(type==='spark')o.add(new THREE.Mesh(G.spark,M.spark));else{const card=new THREE.Mesh(G.card,M.card),stamp=new THREE.Mesh(new THREE.PlaneGeometry(.35,.4),M.stamp);stamp.position.set(.5,.25,.05);o.add(card,stamp);}
   const gl=new THREE.Sprite(glowMat.clone());gl.scale.setScalar(type==='card'?4.5:1.5);o.add(gl);o.position.set(x,10,z);scene.add(o);dynamic.push({type,o,taken:false,t:0,home:o.position.clone()});}
 }
-if(SHORT)buildShortValley();else{village=createVillage({seed:8,scale:VALLEY.villageScale});village.position.set(-3,0,VALLEY.villageZ);scene.add(village);for(let i=0;i<NCH;i++){const ch={};chunks.push(ch);buildChunk(ch,i);}}
+if(SHORT)buildShortValley();else{village=createVillage({seed:8,scale:VALLEY.villageScale});village.position.set(-3,0,VALLEY.villageZ);scene.add(village);{const sb=villageShadeBox();if(sb)UVIL.value.set(sb.x0,sb.x1,sb.z0,sb.z1);}for(let i=0;i<NCH;i++){const ch={};chunks.push(ch);buildChunk(ch,i);}}
 // ---------- bird ----------
 const bird=new THREE.Group();
 const bMat=lam('#ffffff'),wMat=lam('#ffffff'),beakMat=lam('#f29e4c');
