@@ -1,4 +1,11 @@
 import * as THREE from 'three';import {buildPlane} from './planeModel.js';import {woolGeo,sharedHead,HEAD_PIVOT,WOOL,LEGS,legGeo,newPoseState,solvePose,makeFeltMaterial} from './sheepModel.js';
+import {createVillage,updateVillage} from './villageModel.js';
+import {createTree,updateTree} from './treeModel.js';
+import {createFlowerPatch,createHayBale} from './fieldModel.js';
+// Temporary finite spring valley; keep the endless builder available for later.
+const SHORT=true;
+const VALLEY={width:100,near:20,far:-280,start:0,end:-260,flightHalfWidth:34,villageZ:-43,villageScale:1.9};
+let village=null;const meadowTrees=[];let villagePassed=false;
 const SET=Object.assign({vol:.8,sens:1,ghost:true,fastDay:false,invY:false},JSON.parse(localStorage.getItem('kk_set')||'{}'));
 const LOWP=['low','calm'].includes(JSON.parse(localStorage.getItem('kk_set')||'{}').gfx);
 let PROPK=(JSON.parse(localStorage.getItem('kk_set')||'{}').gfx==='calm')?.5:1;
@@ -16,12 +23,12 @@ function fbm(x,z){return vnoise(x,z)*.55+vnoise(x*2.1,z*2.1)*.28+vnoise(x*4.3,z*
 const TS=(SEED%9973)/9973,NOX=TS*517.3,NOZ=TS*331.9,RPH=TS*6.283,RAMP=14+TS*8,BOFF=Math.floor(TS*6)+TS;
 setTimeout(()=>URV.value.set(RPH,RAMP,Math.sin(RPH)*RAMP+Math.sin(RPH*2)*6),0);
 const riverX=z=>Math.sin(z*0.012+RPH)*RAMP+Math.sin(z*0.031+RPH*2)*6-Math.sin(RPH)*RAMP-Math.sin(RPH*2)*6;
-function height(x,z){const dx=x-riverX(z);const side=Math.max(0,Math.abs(dx)-14);
+function height(x,z){if(SHORT)return 0;const dx=x-riverX(z);const side=Math.max(0,Math.abs(dx)-14);
  let h=fbm(x*.03+NOX,z*.03+NOZ)*(6+TS*3)+Math.pow(side/(20+TS*5),2)*9+fbm(x*.08+NOZ,z*.08+NOX)*side*.08;
  const riv=Math.max(0,1-Math.abs(dx)/8);h-=riv*.9;const q=biomeAt(z);const sea=SEA[q.a]*(1-q.k)+SEA[q.b]*q.k;
  const des=(q.a==4?1-q.k:0)+(q.b==4?q.k:0);if(des>0){h+=des*(Math.sin(x*.12+z*.05)*1.6+Math.sin(z*.09-x*.03)*1.1+1.5);}
  h=h>0?h*.3:h;if(sea>0){h=THREE.MathUtils.lerp(h,-.6,sea*THREE.MathUtils.smoothstep(-dx,2,10));}return h;}
-const BL=420;function biomeAt(z){const p=((-z/BL+BOFF)%6+6)%6;const i=Math.floor(p),f=p-i;const k=THREE.MathUtils.smoothstep(f,.8,1);return {a:i,b:(i+1)%6,k};}
+const BL=420;function biomeAt(z){if(SHORT)return {a:0,b:0,k:0};const p=((-z/BL+BOFF)%6+6)%6;const i=Math.floor(p),f=p-i;const k=THREE.MathUtils.smoothstep(f,.8,1);return {a:i,b:(i+1)%6,k};}
 const biome=z=>{const q=biomeAt(z);return q.k>.5?q.b:q.a;};
 const C=(h)=>new THREE.Color(h);
 const pal=[{g1:C('#6cb37a'),g2:C('#5aa56f'),acc:C('#5fb3c4'),tree:[C('#f2a7c3'),C('#f6b9cf'),C('#5f9f62')]},
@@ -49,7 +56,7 @@ const cam=new THREE.OrthographicCamera(-1,1,1,-1,1,400);cam.up.set(0,0,-1);ortho
 const hemi=new THREE.HemisphereLight('#fff4e0','#9fb08a',1.6);scene.add(hemi);
 const DAY=[{sky:C('#f6e6cf'),sun:C('#fff1d6'),si:1.7,hi:1.05,hs:C('#fff4e0')},{sky:C('#e4eef0'),sun:C('#fffaf0'),si:1.8,hi:1.1,hs:C('#f4fbff')},{sky:C('#f8d2a0'),sun:C('#ffd9a8'),si:1.6,hi:1.0,hs:C('#ffe8cc')},{sky:C('#d6a6bf'),sun:C('#f4a1a0'),si:1.1,hi:1.05,hs:C('#d9c2e8')}];
 const DAYLEN=300;let dusk=0;
-const BN=['Pirinç tarlaları · İlkbahar','Nehir vadisi · Sonbahar','Pampa · Uçsuz yeşil','Kıyı · Deniz meltemi','Savan · Kurak mevsim','Hardal tarlaları · Kış sonu'];let capB=-1;function capTick(){const b=biome(birdPos.z);if(b!==capB){capB=b;const c=document.getElementById('cap');if(c)c.innerHTML='<b>'+BN[b]+'</b><span>'+TODAY.split('-').reverse().join('.')+' · Kağıt Kuş</span>';}}
+const BN=[SHORT?'Dere köyü · Pirinç · İlkbahar':'Pirinç tarlaları · İlkbahar','Nehir vadisi · Sonbahar','Pampa · Uçsuz yeşil','Kıyı · Deniz meltemi','Savan · Kurak mevsim','Hardal tarlaları · Kış sonu'];let capB=-1;function capTick(){const b=biome(birdPos.z);if(b!==capB){capB=b;const c=document.getElementById('cap');if(c)c.innerHTML='<b>'+BN[b]+'</b><span>'+TODAY.split('-').reverse().join('.')+' · Kağıt Kuş</span>';}}
 function dayCycle(tt){capTick();const p=(tt/DAYLEN*4)%4,i=Math.floor(p),f=THREE.MathUtils.smoothstep(p-i,.6,1),a=DAY[i],b=DAY[(i+1)%4];
  SKY.copy(a.sky).lerp(b.sky,f);scene.fog.color.copy(SKY);sun.color.copy(a.sun).lerp(b.sun,f);sun.intensity=a.si+(b.si-a.si)*f;hemi.intensity=a.hi+(b.hi-a.hi)*f;hemi.color.copy(a.hs).lerp(b.hs,f);
  dusk=(i===3?1-f:0)+(i===2?f:0);}
@@ -119,6 +126,7 @@ const chunks=[];const dynamic=[];// interactive objects
 const SPOTS=[];const ISLG=lam('#8fbf7a');function spotFree(x,z,rad){for(const q of SPOTS)if(Math.hypot(q[0]-x,q[1]-z)<q[2]+rad)return false;SPOTS.push([x,z,rad]);return true;}
 function rnd(seed){let s=seed;return()=>{s=(s*16807)%2147483647;return s/2147483647;};}
 function buildChunk(ch,idx){
+ if(SHORT)return; // Never spawn procedural towns, primitives or extra biomes here.
  ch.idx=idx;const z0=-idx*CL;ch.z0=z0;
  if(ch.group){scene.remove(ch.group);ch.group.traverse(o=>{if(o.material&&o.material.userData&&o.material.userData.own)o.material.dispose();if(o.isInstancedMesh)o.dispose();else if(o.isMesh&&o.geometry.userData.own)o.geometry.dispose();});}
  for(let i=dynamic.length-1;i>=0;i--)if(dynamic[i].chunk===ch)dynamic.splice(i,1);
@@ -363,7 +371,30 @@ const waterMat=cloudify(new THREE.MeshLambertMaterial({color:'#3f78c0',emissive:
 {const ob=waterMat.onBeforeCompile;waterMat.onBeforeCompile=sh=>{ob(sh);sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
  {vec4 wp=modelMatrix*vec4(transformed,1.);transformed.y+=sin(wp.x*.35+uTime*1.6)*.12+sin(wp.z*.27-uTime*1.2)*.12;}`).replace('#include <common>','#include <common>\nuniform float uTime;');
  sh.fragmentShader=sh.fragmentShader.replace('gl_FragColor.rgb*=1.-cs*.22;','gl_FragColor.rgb*=1.-cs*.22;float fo=smoothstep(.82,1.,sin(vW.x*.5+vW.z*.3+uTime*1.4)*.5+.5);gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(.5,.68,.92),fo*.18);float gli=(step(.992,h2(floor(vW.xz*1.6)+floor(uTime*1.5)*.37))*smoothstep(.45,.1,length(fract(vW.xz*1.6)-.5)));gl_FragColor.rgb+=gli*.35;');};}
-for(let i=0;i<NCH;i++){const ch={};chunks.push(ch);buildChunk(ch,i);}
+// One flat paper meadow, with an exact cutout for the composed village creek.
+// No ground shader river/roads/paddies underneath the workshop materials.
+function buildShortValley(){
+ village=createVillage({seed:8,scale:VALLEY.villageScale});
+ village.position.set(-3,0,VALLEY.villageZ);scene.add(village);
+ const sh=new THREE.Shape();const hw=VALLEY.width/2;
+ sh.moveTo(-hw,-VALLEY.near);sh.lineTo(hw,-VALLEY.near);sh.lineTo(hw,-VALLEY.far);sh.lineTo(-hw,-VALLEY.far);sh.closePath();
+ for(const ring of village.userData.outlines){const hole=new THREE.Path();ring.forEach(([x,z],i)=>{const wx=x*VALLEY.villageScale+village.position.x,wz=z*VALLEY.villageScale+VALLEY.villageZ;i?hole.lineTo(wx,-wz):hole.moveTo(wx,-wz);});hole.closePath();sh.holes.push(hole);}
+ const geo=new THREE.ExtrudeGeometry(sh,{depth:.24,bevelEnabled:false});geo.rotateX(-Math.PI/2);geo.translate(0,-.24,0);
+ const canvas=document.createElement('canvas');canvas.width=canvas.height=256;const ctx=canvas.getContext('2d');ctx.fillStyle='#a5b98c';ctx.fillRect(0,0,256,256);const r=rnd(81);
+ for(let i=0;i<5000;i++){ctx.fillStyle=r()<.5?'#6d89570d':'#fff7cf14';ctx.fillRect(r()*256,r()*256,2,1);}
+ const tex=new THREE.CanvasTexture(canvas);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.colorSpace=THREE.SRGBColorSpace;tex.repeat.set(1/12,1/12);
+ const ground=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({map:tex}));ground.name='Sonlu kağıt vadi';ground.receiveShadow=true;scene.add(ground);
+ // Read-only workshop factories, lightly dotted along both approach and exit.
+ for(let i=0;i<48;i++){const z=12-r()*280,x=(r()-.5)*86;if(z>-82&&z<-12)continue;if(Math.abs(x)<8&&r()<.7)continue;
+  const tree=createTree({kind:i%4===0?'cicekli':'yuvarlak',seed:100+i,scale:1.1+r()*.8});tree.position.set(x,0,z);scene.add(tree);meadowTrees.push(tree);
+  if(i%2===0){const f=createFlowerPatch({seed:100+i,w:3+r()*2,d:2});f.position.set(x+3,0,z+3);scene.add(f);}}
+ for(const [x,z] of [[-20,-4],[17,-105],[-22,-174],[23,-237]]){const f=createFlowerPatch({seed:8,w:5,d:3});f.position.set(x,0,z);scene.add(f);}
+ for(const [x,z] of [[-17,-100],[20,-190]]){const hay=createHayBale({seed:8,group:2});hay.position.set(x,0,z);scene.add(hay);}
+ const route=[['spark',0,-12],['spark',1,-23],['spark',2,-34],['card',0,-50],['spark',-2,-80],['spark',-3,-112],['spark',0,-146],['card',2,-178],['spark',1,-211],['spark',0,-241]];
+ for(const [type,x,z] of route){const o=new THREE.Group();if(type==='spark')o.add(new THREE.Mesh(G.spark,M.spark));else{const card=new THREE.Mesh(G.card,M.card),stamp=new THREE.Mesh(new THREE.PlaneGeometry(.35,.4),M.stamp);stamp.position.set(.5,.25,.05);o.add(card,stamp);}
+  const gl=new THREE.Sprite(glowMat.clone());gl.scale.setScalar(type==='card'?4.5:1.5);o.add(gl);o.position.set(x,10,z);scene.add(o);dynamic.push({type,o,taken:false,t:0,home:o.position.clone()});}
+}
+if(SHORT)buildShortValley();else for(let i=0;i<NCH;i++){const ch={};chunks.push(ch);buildChunk(ch,i);}
 // ---------- bird ----------
 const bird=new THREE.Group();
 const bMat=lam('#ffffff'),wMat=lam('#ffffff'),beakMat=lam('#f29e4c');
@@ -442,6 +473,7 @@ const cardMsgs=[
 ['Orman Fısıltısı','Çamların arasında mantarlar bize göz kırptı.',5],['Ateş Böcekleri','Ormanda akşam: minik fenerler etrafımızda dans ediyor.',5],
 ['Kum Tepeleri','Çölde kaktüsler sıcaktan şapka istiyor.',4],['Serap','Ufukta bir göl gördük… yoksa serap mıydı?',4],
 ['Uçsuz Ova','Pampa o kadar geniş ki rüzgâr bile yoruluyor.',2],['Deniz Kabuğu','Sahilde dalgalar bize bir kabuk bıraktı.',3],['Arı Vızıltısı','Bahar sabahı: arılar çiçekten çiçeğe koşturuyor.',0],['Yaprak Dansı','Rüzgâr esti, sonbahar yaprakları bizimle uçtu.',1]];
+if(SHORT){document.querySelector('#start p').textContent='Dere köyü ve pirinç tarlaları üzerinde kısa bir uçuş.';}
 $('go').onclick=()=>{$('hint').style.display='';setTimeout(()=>{$('hint').style.opacity=0;hinted=true;},4000);dimSoon();initAudio();runZ0=birdPos.z;placeGhost();runT=0;recPath=[];if(!localStorage.getItem('kk_tut'))showTut();$('start').style.display='none';running=true;try{document.documentElement.requestFullscreen?.().catch(()=>{});}catch(e){}};
 // ---------- loop ----------
 const trailMat=new THREE.SpriteMaterial({map:glowTex,color:'#ffffff',transparent:true,opacity:.35,depthWrite:false});
@@ -503,22 +535,32 @@ function openAlbum(){renderTabs();const l=$('albumList');l.innerHTML='';cardMsgs
  d.innerHTML=got?('<b>✉ '+m[0]+(newCards.has(i)?' <span class="stamp">YENİ</span>':'')+'</b><span>'+m[1]+'</span>'+(runCards.includes(i)?'<small>bu uçuşta</small>':'')):'<b>? ? ?</b><small>henüz bulunmadı</small>';l.appendChild(d);});
  $('albumCount').textContent=unlocked.size+' / '+cardMsgs.length+' kartpostal · bu uçuşta '+runCards.length;$('album').style.display='flex';}
 $('albumBtn').onclick=$('albumBtn2').onclick=e=>{e.stopPropagation();openAlbum();};$('albumClose').onclick=()=>$('album').style.display='none';
-const goals=[{t:'5 parıltı topla',ok:()=>sparks>=5},{t:'500 m uç',ok:()=>dist>=500},{t:'1 kartpostal bul',ok:()=>cards>=1},{t:'Pampa ovasına ulaş',ok:()=>biome(birdPos.z)===2},
+const goals=SHORT?[
+ {t:'3 parıltı topla',ok:()=>sparks>=3},{t:'1 kartpostal bul',ok:()=>cards>=1},
+ {t:'Çift dokun: hızlan',ok:()=>boostUsed},{t:'Dere köyünün üstünden geç',ok:()=>villagePassed},
+ {t:'Vadinin sonuna ulaş · 260 m',ok:()=>birdPos.z<=VALLEY.end}
+]:[{t:'5 parıltı topla',ok:()=>sparks>=5},{t:'500 m uç',ok:()=>dist>=500},{t:'1 kartpostal bul',ok:()=>cards>=1},{t:'Pampa ovasına ulaş',ok:()=>biome(birdPos.z)===2},
  {t:'Çift dokun: hızlan',ok:()=>boostT>0},{t:'20 parıltı topla',ok:()=>sparks>=20},{t:'Sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'3 kartpostal bul',ok:()=>cards>=3},{t:'Balon festivalini bul',ok:()=>wowSeen},{t:'2000 m uç',ok:()=>dist>=2000}];
-const doneG=new Set(JSON.parse(localStorage.getItem('kk_goals')||'[]'));const DQ=[{t:'Bugün 20 parıltı topla',ok:()=>DS.s>=20,p:()=>Math.min(20,DS.s)+'/20'},{t:'Bugün sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'Bugün 2 kartpostal bul',ok:()=>DS.c>=2,p:()=>Math.min(2,DS.c)+'/2'},{t:'Bugün 1500 m uç',ok:()=>DS.m>=1500,p:()=>Math.floor(Math.min(1500,DS.m))+'/1500 m'},{t:'Bugün ormana ulaş',ok:()=>biome(birdPos.z)===5},{t:'Bugün çöle ulaş',ok:()=>biome(birdPos.z)===4},{t:'Bugün 10 yıldız tozu topla',ok:()=>(DS.x||0)>=10,p:()=>Math.min(10,DS.x||0)+'/10 ✧'}];
+// Separate short-map progress: preserve all existing endless unlocks/goals.
+const GOAL_KEY=SHORT?'kk_goals_short_v1':'kk_goals';let boostUsed=false;
+const doneG=new Set(JSON.parse(localStorage.getItem(GOAL_KEY)||'[]'));const DQ=SHORT?[
+ {t:'Bugün 5 parıltı topla',ok:()=>DS.s>=5,p:()=>Math.min(5,DS.s)+'/5'},
+ {t:'Bugün 1 kartpostal bul',ok:()=>DS.c>=1,p:()=>Math.min(1,DS.c)+'/1'},
+ {t:'Bugün vadi boyunca uç · 260 m',ok:()=>DS.m>=260,p:()=>Math.floor(Math.min(260,DS.m))+'/260 m'}
+]:[{t:'Bugün 20 parıltı topla',ok:()=>DS.s>=20,p:()=>Math.min(20,DS.s)+'/20'},{t:'Bugün sahile ulaş',ok:()=>biome(birdPos.z)===3},{t:'Bugün 2 kartpostal bul',ok:()=>DS.c>=2,p:()=>Math.min(2,DS.c)+'/2'},{t:'Bugün 1500 m uç',ok:()=>DS.m>=1500,p:()=>Math.floor(Math.min(1500,DS.m))+'/1500 m'},{t:'Bugün ormana ulaş',ok:()=>biome(birdPos.z)===5},{t:'Bugün çöle ulaş',ok:()=>biome(birdPos.z)===4},{t:'Bugün 10 yıldız tozu topla',ok:()=>(DS.x||0)>=10,p:()=>Math.min(10,DS.x||0)+'/10 ✧'}];
 const DS=(()=>{const o=JSON.parse(localStorage.getItem('kk_dq')||'{}');return o.d===TODAY?o:{d:TODAY,s:0,m:0,c:0};})();let lD=0,lS=0,lM=0,lC=0,dsT=0;
 function dailyAcc(dt){if(sparks>lS)DS.s+=sparks-lS;if(dist>lM)DS.m+=dist-lM;if(cards>lC)DS.c+=cards-lC;if(dustN>lD)DS.x=(DS.x||0)+dustN-lD;lD=dustN;lS=sparks;lM=dist;lC=cards;dsT-=dt;if(dsT<=0){dsT=2;localStorage.setItem('kk_dq',JSON.stringify(DS));}}
 const dq=DQ[((DAYNUM%DQ.length)+DQ.length)%DQ.length];let dqDone=localStorage.getItem('kk_daily')===TODAY;
 document.getElementById('daily').innerHTML='Bugünün dünyası · '+TODAY.split('-').reverse().join('.')+'<br>🌞 '+dq.t+(dqDone?' ✓':(dq.p?' ('+dq.p()+')':''));
 function checkDaily(){if(!dqDone&&dq.ok()){dqDone=true;localStorage.setItem('kk_daily',TODAY);setTimeout(()=>{toast('Günlük görev tamam! 🌞 +10 ✦');sparks+=10;chime(1);setTimeout(()=>chime(1.5),150);setTimeout(()=>chime(2),300);for(let i=0;i<4;i++)burst(birdPos,'#ffd27a');},2000);}}
 let gi=0,wowSeen=false;const nextG=()=>{gi=0;while(gi<goals.length&&doneG.has(gi))gi++;};nextG();function showGoal(){const ge=document.getElementById('goal');ge.classList.remove('ghost');clearTimeout(window.__gt);window.__gt=setTimeout(()=>ge.classList.add('ghost'),5000);$('goal').textContent=gi<goals.length?'🎯 '+goals[gi].t:'🎯 Keşfetmeye devam!';}showGoal();
-function checkGoal(){if(gi<goals.length&&goals[gi].ok()){toast('Hedef tamam: '+goals[gi].t+' ✦');for(let i=0;i<3;i++)burst(birdPos,['#fff1a0','#e8766b','#9fdbe6'][i]);chime(1);setTimeout(()=>chime(1.33),130);setTimeout(()=>chime(1.6),260);sparks+=3;doneG.add(gi);goalsRun++;localStorage.setItem('kk_goals',JSON.stringify([...doneG]));nextG();setTimeout(showGoal,1600);}}
+function checkGoal(){if(gi<goals.length&&goals[gi].ok()){toast('Hedef tamam: '+goals[gi].t+' ✦');for(let i=0;i<3;i++)burst(birdPos,['#fff1a0','#e8766b','#9fdbe6'][i]);chime(1);setTimeout(()=>chime(1.33),130);setTimeout(()=>chime(1.6),260);sparks+=3;doneG.add(gi);goalsRun++;localStorage.setItem(GOAL_KEY,JSON.stringify([...doneG]));nextG();setTimeout(showGoal,1600);}}
 let flyT=0,sumShown=false,goalsRun=0;
 function showSummary(auto){const prevBest=+localStorage.getItem(BK)||0;saveBest();
- $('sumTitle').textContent=auto?'2000 m! Harika uçuş':'Konaklama molası';
+ $('sumTitle').textContent=auto?(SHORT?'Vadi tamam! Harika uçuş':'2000 m! Harika uçuş'):'Konaklama molası';
  $('sumBody').innerHTML='<div>Mesafe <b>'+Math.floor(dist)+' m</b></div><div>Parıltı <b>✦ '+sparks+'</b></div><div>Kartpostal <b>✉ '+cards+'</b></div><div>Yıldız tozu <b>✧ '+dustN+'</b></div><div>Hedef <b>🎯 '+goalsRun+'</b></div><div>En iyi <b>'+Math.floor(best)+' m</b>'+(dist>=prevBest-1&&dist>50?' <span class="stamp">REKOR</span>':'')+'</div>'+
  '<ul class="gl">'+goals.map((g,i)=>'<li>'+(doneG.has(i)?'<b style="color:#6fbf73">✓</b>':'○')+' '+g.t+'</li>').join('')+'</ul>';$('summary').style.display='flex';}
-$('stop').onclick=()=>showSummary(false);$('sumGo').onclick=()=>{$('summary').style.display='none';dist=0;sparks=0;cards=0;goalsRun=0;runCards.length=0;sumShown=false;boostT=0;birdPos.y+=3;toast('Yeni uçuş!');dustN=0;$('dust').style.display='none';if(newBestRun){savePath();gPath=recPath;}newBestRun=false;recPath=[];runT=0;runZ0=birdPos.z;placeGhost();};
+$('stop').onclick=()=>showSummary(false);$('sumGo').onclick=()=>{$('summary').style.display='none';dist=0;sparks=0;cards=0;goalsRun=0;runCards.length=0;sumShown=false;boostT=0;boostUsed=false;villagePassed=false;if(SHORT){birdPos.set(0,10,VALLEY.start);vy=0;tx=ty=sIx=sIy=0;for(const d of dynamic)if(d.home){d.taken=false;d.t=0;d.o.position.copy(d.home);d.o.scale.setScalar(1);}lS=lM=lC=lD=0;}else birdPos.y+=3;toast('Yeni uçuş!');dustN=0;$('dust').style.display='none';if(newBestRun){savePath();gPath=recPath;}newBestRun=false;recPath=[];runT=0;runZ0=birdPos.z;placeGhost();};
 $('share').onclick=async()=>{const txt='Kağıt Kuş ile '+Math.floor(dist)+' m uçtum! ✦ '+sparks+' parıltı, ✉ '+cards+' kartpostal topladım. En iyi: '+Math.floor(best)+' m 🕊️ '+location.href;
  try{if(navigator.share){await navigator.share({text:txt});return;}await navigator.clipboard.writeText(txt);toast('Panoya kopyalandı ✓');}catch(e){toast('Paylaşılamadı');}};
 const ALPH='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';function enc(n,len){let o='';for(let i=0;i<len;i++){o=ALPH[n%32]+o;n=Math.floor(n/32);}return o;}function dec(str){let n=0;for(const c of str){const v=ALPH.indexOf(c);if(v<0)return NaN;n=n*32+v;}return n;}
@@ -617,30 +659,30 @@ $('shareImg').onclick=async()=>{const c=document.createElement('canvas');c.width
 const SHT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.6,'rgba(255,255,255,.6)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();const blob=new THREE.Mesh(new THREE.CircleGeometry(1,20),new THREE.MeshBasicMaterial({map:SHT,color:'#2c2218',transparent:true,depthWrite:false,opacity:.25}));blob.rotation.x=-Math.PI/2;blob.renderOrder=1;scene.add(blob);
 const clock=new THREE.Clock();const tmp=new THREE.Vector3();let fogBoost=0,t=0;
 const camPos=new THREE.Vector3(0,16,14);
-function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);t+=dt;U.uTime.value=t;
- boostT=Math.max(0,boostT-dt);const spd=(running?14:6)*(1+boostT*.6)*(1-fogBoost*.3);{const alt=birdPos.y-Math.max(height(birdPos.x,birdPos.z),-1.3);const k=THREE.MathUtils.clamp((alt-2)/18,0,1);ALT=alt;const zt=(1.5-k*.78)*(1-boostT*.04);if(Math.abs(cam.zoom-zt)>.001){cam.zoom+=(zt-cam.zoom)*(1-Math.exp(-dt*2.2));cam.updateProjectionMatrix();}bird.scale.setScalar(2.1*Math.pow(cam.zoom,-.6));}
+function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);t+=dt;U.uTime.value=t;if(village)updateVillage(village,dt,'life');for(const tr of meadowTrees)updateTree(tr,dt,.3);if(running&&boostT>0)boostUsed=true;
+ boostT=Math.max(0,boostT-dt);const spd=(SHORT?(!running||birdPos.z<=VALLEY.end?0:14):(running?14:6))*(1+boostT*.6)*(1-fogBoost*.3);{const alt=birdPos.y-Math.max(height(birdPos.x,birdPos.z),-1.3);const k=THREE.MathUtils.clamp((alt-2)/18,0,1);ALT=alt;const zt=SHORT&&!running?.95:(1.5-k*.78)*(1-boostT*.04);if(Math.abs(cam.zoom-zt)>.001){cam.zoom+=(zt-cam.zoom)*(1-Math.exp(-dt*2.2));cam.updateProjectionMatrix();}bird.scale.setScalar(2.1*Math.pow(cam.zoom,-.6));}
  let ix=tx,iy=ty;if(keys.ArrowLeft||keys.a)ix=-1;if(keys.ArrowRight||keys.d)ix=1;if(keys.ArrowUp||keys.w)iy=1;if(keys.ArrowDown||keys.s)iy=-1;
  if(!active&&!keys.ArrowLeft&&!keys.ArrowRight){tx*=Math.exp(-dt*1.2);}if(!active){ty*=Math.exp(-dt*1.2);}
  ix+=tilt.x;iy+=tilt.y;sIx+=(THREE.MathUtils.clamp(ix,-1,1)-sIx)*(1-Math.exp(-dt*5));sIy+=(THREE.MathUtils.clamp(iy,-1,1)-sIy)*(1-Math.exp(-dt*4));ix=sIx;iy=sIy;
  // steering: finger offset -> lateral speed & target altitude above ground
- const latV=ix*13;birdPos.x+=latV*dt;birdPos.z-=spd*dt;
+ const latV=ix*13;birdPos.x+=latV*dt;const oldZ=birdPos.z;birdPos.z-=spd*dt;if(SHORT)birdPos.z=THREE.MathUtils.clamp(birdPos.z,VALLEY.end,VALLEY.start);
  yaw+=((-ix*.3)-yaw)*dt*2;bank+=((-ix*.6)-bank)*(1-Math.exp(-dt*2.5));
  const gh=Math.max(height(birdPos.x,birdPos.z),-1.3),ahead=Math.max(height(birdPos.x,birdPos.z-8),-1.3);
  loftT=Math.max(0,loftT-dt);const tgt=Math.max(gh,ahead)+10+iy*8.5+loftT*9;vy+=((tgt-birdPos.y)*1.6-vy)*dt*2.5;birdPos.y+=vy*dt+Math.sin(t*2)*.008;
  pitch+=((THREE.MathUtils.clamp(vy*.06,-.4,.4))-pitch)*dt*4;
  if(birdPos.y<gh+1.4){birdPos.y=gh+1.4;vy=6;if(toastT<=0)toast("Hop!");}
- const lim=riverX(birdPos.z);birdPos.x=THREE.MathUtils.clamp(birdPos.x,lim-34,lim+34);
- if(running)dist+=spd*dt;
+ const lim=SHORT?0:riverX(birdPos.z);birdPos.x=THREE.MathUtils.clamp(birdPos.x,lim-(SHORT?VALLEY.flightHalfWidth:34),lim+(SHORT?VALLEY.flightHalfWidth:34));if(SHORT&&running&&birdPos.z<VALLEY.villageZ-18)villagePassed=true;
+ if(running){if(SHORT)dist=VALLEY.start-birdPos.z;else dist+=oldZ-birdPos.z;}
  bird.position.copy(birdPos);bird.rotation.set(pitch,yaw,bank,'YXZ');
  const dive=THREE.MathUtils.clamp(-vy*.08,0,.6);const FR=BT[btype].fr||1;const flap=(Math.sin(t*(vy>1.5||boostT>0?14:5)*FR)*(BP.flap+Math.min(.5,Math.max(0,vy)*.1)+boostT*.3)*(1-dive))*(running?1:.7)-dive*.5;wL.rotation.z=flap;wR.rotation.z=-flap;oF+=(flap-oF)*(1-Math.exp(-dt*7));wLo.rotation.z=(oF-flap)*1.4+flap*.35;wRo.rotation.z=-wLo.rotation.z;if(plane.visible){plane.userData.tick(dt,{steer:tx,climb:THREE.MathUtils.clamp(vy*.15,-1,1),input:ty,spin:running?1:.45});}wL.rotation.y=dive*.6;wR.rotation.y=-dive*.6;
  tailS.rotation.z=Math.sin(t*12)*.3;
  // camera chase
- tmp.set(birdPos.x*.75,150,birdPos.z-VIEWH()*.18);camPos.x+=(tmp.x-camPos.x)*(1-Math.exp(-dt*2));camPos.z=tmp.z;camPos.y=150;cam.position.copy(camPos);
+ tmp.set(birdPos.x*.75,150,SHORT&&!running?-26:birdPos.z-VIEWH()*.18);camPos.x+=(tmp.x-camPos.x)*(1-Math.exp(-dt*2));if(SHORT){const mx=Math.max(0,VALLEY.width/2-VIEWH()/cam.zoom/2*innerWidth/innerHeight+.8);camPos.x=THREE.MathUtils.clamp(camPos.x,-mx,mx);}camPos.z=SHORT?THREE.MathUtils.clamp(tmp.z,VALLEY.far+VIEWH()/cam.zoom/2-.8,VALLEY.near-VIEWH()/cam.zoom/2+.8):tmp.z;camPos.y=150;cam.position.copy(camPos);
  cam.up.set(Math.sin(bank*.04),0,-Math.cos(bank*.04));cam.lookAt(camPos.x,0,camPos.z);
  const sa=flyT/DAYLEN*Math.PI*2*.25;tmp.set(camPos.x,0,camPos.z);sun.position.copy(tmp).add(new THREE.Vector3(-38+Math.sin(sa)*6,90,-30));sun.target.position.copy(tmp);{const ext=Math.min(66,50/cam.zoom);if(Math.abs(sun.shadow.camera.right-ext)>.5){Object.assign(sun.shadow.camera,{left:-ext,right:ext,top:ext,bottom:-ext});sun.shadow.camera.updateProjectionMatrix();}}
  {const gy=Math.max(height(birdPos.x,birdPos.z),-1.3);const al=birdPos.y-gy;blob.position.set(birdPos.x+1.2,gy+.12,birdPos.z+1);const bs=bird.scale.x*(plane.visible?1.6:.7)*(1+al*.015);blob.scale.set(bs*(plane.visible?1.6:1),bs,1);blob.material.opacity=(plane.visible?.34:.22)*THREE.MathUtils.clamp(1.2-al/40,.35,1);}
  // chunk recycle
- const cur=Math.floor(-birdPos.z/CL);for(const ch of chunks){if(ch.idx<cur-1){buildChunk(ch,ch.idx+NCH);}}
+ const cur=Math.floor(-birdPos.z/CL);if(!SHORT)for(const ch of chunks){if(ch.idx<cur-1){buildChunk(ch,ch.idx+NCH);}}
  // dynamic objects
  let inCloud=false;
  for(const d of dynamic){const o=d.o;const dx=o.position.x-birdPos.x,dz=o.position.z-birdPos.z;const dd=dx*dx+dz*dz;
@@ -682,11 +724,11 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()
  recTick(dt);if(running&&dist>best){best=dist;newBestRun=true;if(Math.floor(dist)%20==0){saveBest();savePath();}}
  wind(spd,vy);
  if(running){for(const ch of chunks)if(ch.wow&&Math.abs(ch.z0-30-birdPos.z)<40)wowSeen=true;checkGoal();dailyAcc(dt);checkDaily();}
- weatherTick(dt);dustTick(dt);fogBoost=Math.max(fogBoost,wFog*.55);
+ if(!SHORT)weatherTick(dt);dustTick(dt);fogBoost=Math.max(fogBoost,wFog*.55);
  flyT+=running?dt:0;dayCycle(SET.fastDay?flyT*6+80:flyT+80);nightFx();ghostTick();
- if(running&&dist>=2000&&!sumShown){sumShown=true;setTimeout(()=>showSummary(true),1200);}
+ if(running&&(SHORT?birdPos.z<=VALLEY.end:dist>=2000)&&!sumShown){sumShown=true;toast('Kağıdın kenarına geldin');showSummary(true);}
  crowdToastT-=dt;if(toastT>0){toastT-=dt;if(toastT<=.35)$('toast').style.opacity=0;if(toastT<=0&&TQ.length){toast(TQ.shift());}}
  $('dist').textContent=Math.floor(dist)+' m';$('coll').textContent='✦ '+sparks;$('post').textContent='✉ '+cards;
  renderer.render(scene,cam);}
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);orthoFit();});
-frame();window.__dyn=dynamic;window.__R=renderer;window.__S=scene;window.__hum=()=>dynamic.filter(d=>['train','ship','town','act'].includes(d.type)).map(d=>[d.type,Math.round(d.o.position.x||d.x||0),Math.round(d.zr||d.o.position.z)]);window.__cr=()=>dynamic.filter(d=>d.type==='crowd');window.__crowds=()=>dynamic.filter(d=>d.type==='crowd').map(d=>d.kind);window.__game={birdPos,get sparks(){return sparks}};
+frame();window.__dyn=dynamic;window.__R=renderer;window.__S=scene;window.__hum=()=>dynamic.filter(d=>['train','ship','town','act'].includes(d.type)).map(d=>[d.type,Math.round(d.o.position.x||d.x||0),Math.round(d.zr||d.o.position.z)]);window.__cr=()=>dynamic.filter(d=>d.type==='crowd');window.__crowds=()=>dynamic.filter(d=>d.type==='crowd').map(d=>d.kind);window.__game={birdPos,get sparks(){return sparks},get cards(){return cards},get dist(){return dist},get ended(){return sumShown},get village(){return village},bounds:VALLEY};
