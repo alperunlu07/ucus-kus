@@ -153,7 +153,7 @@ addEventListener('resize',()=>{R.setSize(innerWidth,innerHeight);fit();});
 // place caption
 const placeEl=document.getElementById('place');
 function placeName(x,z){if(inRect(x,z,VR,10))return 'Dere köyü';if(inRect(x,z,RUNR,25))return 'Çayır pisti';if(x>SHORE+5)return Math.hypot(x-LH.x,z-LH.z)<60?'Fener burnu':'Kıyı ve adalar';if(Math.hypot(x-LH.x,z-LH.z)<60)return 'Fener burnu';if(Math.hypot(x-TOWN.x,z-TOWN.z)<70)return 'Tarla kasabası';if(Math.abs(z-RAILZ)<40)return 'Demiryolu';if(Math.hypot(x-HAM.x,z-HAM.z)<50)return 'İstasyon mezrası';if(Math.hypot(x-MILL.x,z-MILL.z)<60)return 'Yel değirmeni tepesi';if(x<-170)return 'Ormanlı tepeler';return 'Çayırlar';}
-const clk=new THREE.Clock();let t=0;const altEl=document.getElementById('alt');const tmp=new THREE.Vector3();
+const clk=new THREE.Clock();let t=0;const altEl=document.getElementById('alt');const tmp=new THREE.Vector3();const wOff=new THREE.Vector3(),wUp=new THREE.Vector3(),cOff=new THREE.Vector3(1,1.15,1).normalize(),cUp=new THREE.Vector3(0,1,0),cTgt=new THREE.Vector3();let camInit=false;
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.05);t+=dt;
  let steer=st.steer,climb=st.climb;if(pad.L)steer=-1;if(pad.R)steer=1;if(pad.U)climb=1;if(pad.D)climb=-1;if(keys.ArrowLeft||keys.a)steer=-1;if(keys.ArrowRight||keys.d)steer=1;if(keys.ArrowUp||keys.w)climb=1;if(keys.ArrowDown||keys.s)climb=-1;
  if(st.park){steer=0;climb=0;}
@@ -183,11 +183,10 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.
   else if(d.kind==='cloud'){o.position.x+=d.vx*dt;if(o.position.x>620)o.position.x=-620;const near=Math.hypot(o.position.x-st.x,o.position.z-st.z)<Math.max(34,vh*.75)&&o.position.y>st.y-4;updateCloud(o,dt,near?'part':'drift');}}
  // camera
  const a=st.y-gy;U.pilotOn=!st.park;vh=13;const D=camDist();
- const tgt=tmp.set(st.x,st.y,st.z);
- if(st.view===0){const k=D/Math.hypot(1,.35);cam.position.set(st.x,st.y+k,st.z+k*.35);cam.up.set(0,0,-1);}
- else if(st.view===1){const k=D/Math.hypot(1,1.15,1);cam.position.set(st.x+k,st.y+k*1.15,st.z+k);if(st.park)tgt.set(st.x,gy+.6,st.z-.3);cam.up.set(0,1,0);}
- else {cam.position.set(st.x+D*Math.cos(st.head),st.y+D*.08,st.z-D*Math.sin(st.head));cam.up.set(0,1,0);}
- cam.lookAt(tgt);
+ const tgt=tmp.set(st.x,st.y,st.z);if(st.park&&st.view===1)tgt.set(st.x,gy+.6,st.z-.3);
+ if(st.view===0){wOff.set(0,1,.35);wUp.set(0,0,-1);}else if(st.view===1){wOff.set(1,1.15,1);wUp.set(0,1,0);}else{wOff.set(Math.cos(st.head),.08,-Math.sin(st.head));wUp.set(0,1,0);}
+ const kc=camInit?1-Math.exp(-dt*2.2):1;camInit=true;wOff.normalize();cOff.lerp(wOff,kc).normalize();cUp.lerp(wUp,kc).normalize();cTgt.lerp(tgt.sub(holder.position),kc);
+ cam.position.copy(holder.position).addScaledVector(cOff,D);cam.up.copy(cUp);cam.lookAt(tmp.copy(holder.position).add(cTgt));
  altEl.textContent='✈ '+(st.park?'Pistte · kanopi '+(U.canopyOpen?'açık':'kapalı'):'irtifa '+Math.round(a)+' m · hız '+Math.round(st.speed*3.6)+' km/s · gaz '+Math.round(st.thr*100)+'%');
  placeEl.textContent=placeName(st.x,st.z);
  R.render(S,cam);}
