@@ -136,7 +136,7 @@ const pad={};document.querySelectorAll('#pad button').forEach(b=>{const k=b.data
 const thrEl=document.getElementById('thr');thrEl.addEventListener('input',()=>{st.thr=thrEl.value/100;});
 let drag=null;addEventListener('pointerdown',e=>{if(e.target.closest('button,a,input,#thrW'))return;if(st.park)togFly();drag={x:e.clientX,y:e.clientY};});addEventListener('pointermove',e=>{if(!drag)return;const s=Math.min(innerWidth,innerHeight)*.25;st.steer=THREE.MathUtils.clamp((e.clientX-drag.x)/s,-1,1);st.climb=THREE.MathUtils.clamp(-(e.clientY-drag.y)/s,-1,1);});const up=()=>{drag=null;st.steer=0;st.climb=0;};addEventListener('pointercancel',up);addEventListener('pointerup',up);
 const U=plane.userData;U.canopyOpen=true;function togCan(){U.canopyOpen=!U.canopyOpen;}
-function togFly(){st.park=!st.park;if(st.park){U.canopyOpen=true;st.thr=0;}else{U.canopyOpen=false;st.thr=Math.max(st.thr,thrEl.value/100,.3);st.vy=3;if(st.view===1&&st.y<1)st.view=0;}}
+function togFly(){st.park=!st.park;if(st.park){U.canopyOpen=true;st.thr=0;}else{U.canopyOpen=false;st.thr=Math.max(st.thr,thrEl.value/100,.3);st.vy=3;}}
 function goHome(){Object.assign(st,{x:HOME.x,z:HOME.z,y:.22,head:0,vy:0,speed:0,park:true,thr:0});U.canopyOpen=true;}
 window.__tog={togCan,togFly,goHome};
 document.getElementById('bCan').onclick=togCan;document.getElementById('bFly').onclick=togFly;document.getElementById('bHome').onclick=goHome;
@@ -182,7 +182,7 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.
   else if(d.kind==='balloon'){o.position.x+=d.vx*dt;o.position.z+=d.vz*dt;if(o.position.x>420)o.position.x=-260;updateBalloon(o,dt);}
   else if(d.kind==='cloud'){o.position.x+=d.vx*dt;if(o.position.x>620)o.position.x=-620;const near=Math.hypot(o.position.x-st.x,o.position.z-st.z)<Math.max(34,vh*.75)&&o.position.y>st.y-4;updateCloud(o,dt,near?'part':'drift');}}
  // camera
- const a=st.y-gy;U.pilotOn=!st.park;vh=THREE.MathUtils.lerp(vh,st.park?(st.view===0?16:12):st.view===2?24:22,1-Math.exp(-dt*2.5));const D=camDist();
+ const a=st.y-gy;U.pilotOn=!st.park;vh=st.view===0?15:st.view===2?16:13;const D=camDist();
  const tgt=tmp.set(st.x,st.y,st.z);
  if(st.view===0){const k=D/Math.hypot(1,.35);cam.position.set(st.x,st.y+k,st.z+k*.35);cam.up.set(0,0,-1);}
  else if(st.view===1){const k=D/Math.hypot(1,1.15,1);cam.position.set(st.x+k,st.y+k*1.15,st.z+k);if(st.park)tgt.set(st.x,gy+.6,st.z-.3);cam.up.set(0,1,0);}
