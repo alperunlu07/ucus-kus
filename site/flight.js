@@ -128,7 +128,7 @@ const black=new THREE.Color(0);
 function shadowTick(gy){const a=st.y-gy;scam.position.set(st.x,st.y+20,st.z);scam.lookAt(st.x,st.y-10,st.z);const ov=S.overrideMaterial,bg=S.background;S.overrideMaterial=sMat;S.background=black;R.setRenderTarget(SRT);R.render(S,scam);R.setRenderTarget(null);S.overrideMaterial=ov;S.background=bg;
  const h=Math.max(0,a-.2);const k=1/(1+h*.035);shQ.scale.setScalar(SW*k);shQ.position.set(st.x+h*.35,gy+.2,st.z+h*.22);
  shQ.material.uniforms.blur.value=.0015+h*.0006;shQ.material.uniforms.op.value=THREE.MathUtils.clamp(.62-h*.012,.1,.62);}
-const cam=new THREE.OrthographicCamera(-1,1,1,-1,.1,900);
+const cam=new THREE.PerspectiveCamera(30,innerWidth/innerHeight,.5,3000);const TF=Math.tan(15*Math.PI/180);
 const HOME={x:RUN.x,z:RUN.z1-12};
 const st={x:HOME.x,z:HOME.z,y:.22,head:0,vy:0,steer:0,climb:0,view:1,auto:false,speed:0,thr:0,park:true};window.__pl=st;
 const keys={};addEventListener('keydown',e=>{keys[e.key]=1;if(st.park&&/^Arrow|^[wasd]$/.test(e.key))togFly();if(e.key==='v'||e.key==='V')st.view=(st.view+1)%3;if(e.key==='c'||e.key==='C')togCan();if(e.key==='f'||e.key==='F')togFly();if(e.key==='+'||e.key==='e')st.thr=Math.min(1,st.thr+.1);if(e.key==='-'||e.key==='q')st.thr=Math.max(.15,st.thr-.1);});addEventListener('keyup',e=>keys[e.key]=0);
@@ -148,7 +148,7 @@ const TN=60;const trails=U.tips.map(()=>{const g=new THREE.BufferGeometry();g.se
 const _v=new THREE.Vector3();function trailTick(spd){const sk=THREE.MathUtils.smoothstep(spd,8,26);const n=Math.round(10+sk*(TN-10));
  U.tips.forEach((tp,k)=>{const T=trails[k];tp.getWorldPosition(_v);T.pts.unshift(_v.clone());if(T.pts.length>TN)T.pts.pop();T.m.uniforms.op.value=.75*sk;
   const PP=T.g.attributes.position,A=T.g.attributes.a;for(let i=0;i<TN;i++){const q=T.pts[Math.min(i,T.pts.length-1)];const w=(.03*(1-i/TN)+.006)*Math.max(1,vh/9);PP.setXYZ(i*2,q.x-w,q.y,q.z);PP.setXYZ(i*2+1,q.x+w,q.y,q.z);const al=i<n?(1-i/n):0;A.setX(i*2,al);A.setX(i*2+1,al);}PP.needsUpdate=A.needsUpdate=true;});}
-let vh=14;function fit(){const asp=innerWidth/innerHeight,v=asp<1?vh*1.7:vh,w=v*asp;cam.left=-w/2;cam.right=w/2;cam.top=v/2;cam.bottom=-v/2;cam.updateProjectionMatrix();}
+let vh=14;function camDist(){return (innerWidth<innerHeight?vh*1.7:vh)/2/TF;}function fit(){cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
 addEventListener('resize',()=>{R.setSize(innerWidth,innerHeight);fit();});
 // place caption
 const placeEl=document.getElementById('place');
@@ -182,11 +182,11 @@ function frame(){requestAnimationFrame(frame);const dt=Math.min(clk.getDelta(),.
   else if(d.kind==='balloon'){o.position.x+=d.vx*dt;o.position.z+=d.vz*dt;if(o.position.x>420)o.position.x=-260;updateBalloon(o,dt);}
   else if(d.kind==='cloud'){o.position.x+=d.vx*dt;if(o.position.x>620)o.position.x=-620;const near=Math.hypot(o.position.x-st.x,o.position.z-st.z)<Math.max(34,vh*.75)&&o.position.y>st.y-4;updateCloud(o,dt,near?'part':'drift');}}
  // camera
- const a=st.y-gy;U.pilotOn=!st.park;vh=THREE.MathUtils.lerp(vh,st.park?(st.view===0?16:12):st.view===2?24:22+a*.95,1-Math.exp(-dt*2.5));fit();
- const tgt=tmp.set(st.x,st.y*.6+gy*.4,st.z);
- if(st.view===0){const tilt=THREE.MathUtils.clamp(.35-a*.006,.05,.35);cam.position.set(st.x,st.y+160,st.z+160*tilt);cam.up.set(0,0,-1);}
- else if(st.view===1){cam.position.set(st.x+120,st.y+(st.park?150:130),st.z+120);if(st.park)tgt.set(st.x,gy+.6,st.z-.3);cam.up.set(0,1,0);}
- else {cam.position.set(st.x+160*Math.cos(st.head),st.y+8,st.z-160*Math.sin(st.head));cam.up.set(0,1,0);tgt.y=st.y;}
+ const a=st.y-gy;U.pilotOn=!st.park;vh=THREE.MathUtils.lerp(vh,st.park?(st.view===0?16:12):st.view===2?24:22,1-Math.exp(-dt*2.5));const D=camDist();
+ const tgt=tmp.set(st.x,st.y,st.z);
+ if(st.view===0){const k=D/Math.hypot(1,.35);cam.position.set(st.x,st.y+k,st.z+k*.35);cam.up.set(0,0,-1);}
+ else if(st.view===1){const k=D/Math.hypot(1,1.15,1);cam.position.set(st.x+k,st.y+k*1.15,st.z+k);if(st.park)tgt.set(st.x,gy+.6,st.z-.3);cam.up.set(0,1,0);}
+ else {cam.position.set(st.x+D*Math.cos(st.head),st.y+D*.08,st.z-D*Math.sin(st.head));cam.up.set(0,1,0);}
  cam.lookAt(tgt);
  altEl.textContent='✈ '+(st.park?'Pistte · kanopi '+(U.canopyOpen?'açık':'kapalı'):'irtifa '+Math.round(a)+' m · hız '+Math.round(st.speed*3.6)+' km/s · gaz '+Math.round(st.thr*100)+'%');
  placeEl.textContent=placeName(st.x,st.z);
